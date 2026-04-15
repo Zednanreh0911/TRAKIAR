@@ -1,0 +1,515 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Trakiar API",
+    "version": "1.0.0",
+    "description": "Documentación de la API para la aplicación Trakiar."
+  },
+  "paths": {
+    "/api/users/register": {
+      "post": {
+        "summary": "Registrar un nuevo usuario",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nombre": { "type": "string" },
+                  "correo": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["nombre", "correo", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario registrado exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          }
+        }
+      }
+    },
+    "/api/users/login": {
+      "post": {
+        "summary": "Iniciar sesión",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "correo": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["correo", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inicio de sesión exitoso"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          }
+        }
+      }
+    },
+    "/api/users/promote-to-driver": {
+      "post": {
+        "summary": "Promover un usuario a chofer",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "correo": { "type": "string" },
+                  "cedula": { "type": "string" }
+                },
+                "required": ["correo", "cedula"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario promovido a chofer exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/driver-profile": {
+      "get": {
+        "summary": "Obtener perfil del chofer autenticado y su unidad asignada",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Perfil de chofer obtenido exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Perfil de chofer no encontrado"
+          }
+        }
+      }
+    },
+    "/api/users/driver-routes": {
+      "get": {
+        "summary": "Obtener rutas disponibles del chofer según su línea asignada",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Rutas obtenidas exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Perfil de chofer no encontrado"
+          }
+        }
+      }
+    },
+    "/api/users/driver-location": {
+      "post": {
+        "summary": "Registrar una ubicación individual del chofer para una ruta",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idRuta": { "type": "integer" },
+                  "latitud": { "type": "number", "format": "float" },
+                  "longitud": { "type": "number", "format": "float" },
+                  "velocidadKmh": { "type": "number", "format": "float", "nullable": true },
+                  "capturedAt": { "type": "string", "format": "date-time", "nullable": true }
+                },
+                "required": ["idRuta", "latitud", "longitud"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ubicación registrada exitosamente (incluye id_ruta)"
+          },
+          "400": {
+            "description": "Datos incompletos o chofer sin unidad"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Ruta no válida para la línea del chofer"
+          }
+        }
+      }
+    },
+    "/api/users/driver-locations-batch": {
+      "post": {
+        "summary": "Registrar un lote de ubicaciones del chofer para una ruta",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idRuta": { "type": "integer" },
+                  "puntos": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "latitud": { "type": "number", "format": "float" },
+                        "longitud": { "type": "number", "format": "float" },
+                        "velocidadKmh": { "type": "number", "format": "float", "nullable": true },
+                        "capturedAt": { "type": "string", "format": "date-time", "nullable": true }
+                      },
+                      "required": ["latitud", "longitud"]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": ["idRuta", "puntos"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lote de ubicaciones registrado exitosamente"
+          },
+          "400": {
+            "description": "Datos incompletos o puntos inválidos"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Ruta no válida para la línea del chofer"
+          }
+        }
+      }
+    },
+    "/api/users/search-routes": {
+      "get": {
+        "summary": "Buscar rutas por línea, nombre o descripción usando coincidencia por palabras",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "ferrero tamayo"
+            },
+            "description": "Texto de búsqueda; se divide por palabras y todas deben coincidir en línea, nombre o descripción"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rutas encontradas exitosamente"
+          },
+          "400": {
+            "description": "Parámetro de búsqueda inválido"
+          },
+          "401": {
+            "description": "Token requerido"
+          }
+        }
+      }
+    },
+    "/api/users/create-unit": {
+      "post": {
+        "summary": "Crear una unidad en la línea del gerente autenticado",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "identificador": { "type": "string", "example": "BUS-01" },
+                  "estado": { "type": "string", "enum": ["activo", "mantenimiento", "inactivo"] }
+                },
+                "required": ["identificador"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Unidad creada exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/units-by-line": {
+      "get": {
+        "summary": "Listar unidades de la línea del gerente autenticado",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Unidades obtenidas exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        }
+      }
+    },
+    "/api/users/assign-unit": {
+      "post": {
+        "summary": "Asignar una unidad a un chofer",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idUnidad": { "type": "integer" },
+                  "correo": { "type": "string", "format": "email" }
+                },
+                "required": ["idUnidad", "correo"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unidad asignada al chofer exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/update-unit-driver": {
+      "put": {
+        "summary": "Cambiar el chofer asignado a una unidad",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idUnidad": { "type": "integer" },
+                  "correo": { "type": "string", "format": "email" }
+                },
+                "required": ["idUnidad", "correo"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chofer de la unidad actualizado exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/delete-unit/{idUnidad}": {
+      "delete": {
+        "summary": "Eliminar una unidad",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "idUnidad",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unidad eliminada exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Unidad no encontrada"
+          }
+        }
+      }
+    },
+    "/api/users/add-route": {
+      "post": {
+        "summary": "Agregar una nueva ruta",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nombre": { "type": "string" },
+                  "descripcion": { "type": "string" }
+                },
+                "required": ["nombre", "descripcion"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ruta creada exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/routes-by-line": {
+      "get": {
+        "summary": "Listar rutas de la línea del gerente autenticado",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Rutas obtenidas exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "500": {
+            "description": "Error interno"
+          }
+        }
+      }
+    },
+    "/api/users/edit-route/{idRuta}": {
+      "put": {
+        "summary": "Editar una ruta existente",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "idRuta",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nombre": { "type": "string" },
+                  "descripcion": { "type": "string" }
+                },
+                "required": ["nombre", "descripcion"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ruta actualizada exitosamente"
+          },
+          "400": {
+            "description": "Error en los datos enviados"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/users/delete-route/{idRuta}": {
+      "delete": {
+        "summary": "Eliminar una ruta existente",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "idRuta",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ruta eliminada exitosamente"
+          },
+          "403": {
+            "description": "Acceso denegado"
+          },
+          "404": {
+            "description": "Ruta no encontrada"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

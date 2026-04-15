@@ -1,0 +1,212 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import AppButton from '../components/AppButton';
+import AppCard from '../components/AppCard';
+import AppDropdown from '../components/AppDropdown';
+import AppInput from '../components/AppInput';
+import AppScreen from '../components/AppScreen';
+import { useAuth } from '../context/AuthContext';
+import { addRoute, deleteRoute, editRoute, getRoutesByLine } from '../services/apiService';
+import { colors } from '../theme/colors';
+import { getErrorText } from '../utils/error';
+
+export default function RoutesManagementScreen() {
+  const { token, user } = useAuth();
+
+  const [rutas, setRutas] = useState([]);
+  const [routeName, setRouteName] = useState('');
+  const [routeDesc, setRouteDesc] = useState('');
+  const [idRuta, setIdRuta] = useState('');
+  const [loadingKey, setLoadingKey] = useState('');
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [responseText, setResponseText] = useState('Aquí verás el resultado de crear/editar/eliminar rutas.');
+
+  const rutasOptions = useMemo(
+    () =>
+      rutas.map((ruta) => ({
+        value: String(ruta.id),
+        label: ruta.nombre,
+        leftIconName: 'routes',
+        leftIconColor: colors.primary,
+      })),
+    [rutas]
+  );
+
+  const loadRoutes = async () => {
+    try {
+      setLoadingRoutes(true);
+      const response = await getRoutesByLine(token);
+      const fetchedRoutes = response?.rutas ?? [];
+      setRutas(fetchedRoutes);
+
+      if (idRuta && !fetchedRoutes.some((r) => String(r.id) === idRuta)) {
+        setIdRuta('');
+      }
+    } catch (error) {
+      setResponseText(getErrorText(error));
+    } finally {
+      setLoadingRoutes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && user?.rol === 'gerente') {
+      loadRoutes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user?.rol]);
+
+  useEffect(() => {
+    const rutaSeleccionada = rutas.find((ruta) => String(ruta.id) === idRuta);
+    if (rutaSeleccionada) {
+      setRouteName(rutaSeleccionada.nombre || '');
+      setRouteDesc(rutaSeleccionada.descripcion || '');
+    }
+  }, [idRuta, rutas]);
+
+  if (user?.rol !== 'gerente') {
+    return (
+      <AppScreen>
+        <View style={styles.deniedWrap}>
+          <Text style={styles.deniedTitle}>Acceso restringido</Text>
+          <Text style={styles.deniedText}>Esta sección es exclusiva para usuarios con rol gerente.</Text>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  const runAction = async (key, action) => {
+    try {
+      setLoadingKey(key);
+      const response = await action();
+      setResponseText(JSON.stringify(response, null, 2));
+      Alert.alert('Éxito', 'Operación completada correctamente.');
+    } catch (error) {
+      const message = getErrorText(error);
+      setResponseText(message);
+      Alert.alert('Error', message);
+    } finally {
+      setLoadingKey('');
+    }
+  };
+
+  return (
+    <AppScreen>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.headerRow}>
+          <MaterialCommunityIcons name="map-marker-path" size={28} color={colors.primary} />
+          <Text style={styles.header}>Gestión de rutas</Text>
+        </View>
+        <Text style={styles.subheader}>Crea, edita o elimina rutas asociadas a tu línea.</Text>
+
+        <AppCard>
+          <Text style={styles.sectionTitle}>Crear ruta</Text>
+          <View style={styles.form}>
+            <Text style={styles.helperText}>
+              La ruta se creará automáticamente en la línea asignada a tu perfil de gerente.
+            </Text>
+            <AppInput label="Nombre de ruta" value={routeName} onChangeText={setRouteName} />
+            <AppInput label="Descripción" value={routeDesc} onChangeText={setRouteDesc} />
+            <AppButton
+              title="Crear ruta"
+              loading={loadingKey === 'create'}
+              onPress={() =>
+                runAction('create', () =>
+                  addRoute(token, {
+                    nombre: routeName,
+                    descripcion: routeDesc,
+                  })
+                  , async () => {
+                    setRouteName('');
+                    setRouteDesc('');
+                    await loadRoutes();
+                  }
+                )
+              }
+            />
+          </View>
+        </AppCard>
+
+        <AppCard>
+          <Text style={styles.sectionTitle}>Editar o eliminar ruta</Text>
+          <View style={styles.form}>
+            <AppDropdown
+              label="Ruta existente"
+              value={idRuta}
+              options={rutasOptions}
+              onChange={setIdRuta}
+              placeholder="Selecciona una ruta"
+              loading={loadingRoutes}
+              disabled={loadingRoutes}
+              emptyText="No hay rutas registradas en tu línea."
+              leftIconName="map-marker-path"
+              leftIconColor={colors.primary}
+            />
+            <AppInput label="Nombre de ruta" value={routeName} onChangeText={setRouteName} />
+            <AppInput label="Descripción" value={routeDesc} onChangeText={setRouteDesc} />
+            <AppButton
+              title="Editar ruta"
+              variant="secondary"
+              loading={loadingKey === 'edit'}
+              disabled={!idRuta || !routeName || !routeDesc}
+              onPress={() =>
+                runAction('edit', () =>
+                  editRoute(token, Number(idRuta), {
+                    nombre: routeName,
+                    descripcion: routeDesc,
+                  })
+                  , async () => {
+                    await loadRoutes();
+                  }
+                )
+              }
+            />
+            <AppButton
+              title="Eliminar ruta"
+              variant="secondary"
+              loading={loadingKey === 'delete'}
+              disabled={!idRuta}
+              onPress={() =>
+                runAction('delete', () => deleteRoute(token, Number(idRuta)), async () => {
+                  setIdRuta('');
+                  setRouteName('');
+                  setRouteDesc('');
+                  await loadRoutes();
+                })
+              }
+            />
+            <AppButton title="Actualizar rutas" variant="secondary" loading={loadingRoutes} onPress={loadRoutes} />
+          </View>
+        </AppCard>
+
+        <AppCard>
+          <Text style={styles.sectionTitle}>Respuesta</Text>
+          <Text style={styles.response}>{responseText}</Text>
+        </AppCard>
+      </ScrollView>
+    </AppScreen>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { gap: 14, paddingBottom: 28 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  header: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  subheader: { color: colors.textMuted, lineHeight: 20 },
+  helperText: { color: colors.textMuted, lineHeight: 20, fontSize: 13 },
+  sectionTitle: { color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  form: { gap: 10 },
+  response: {
+    color: '#12346B',
+    backgroundColor: '#EEF3FF',
+    borderWidth: 1,
+    borderColor: '#D9E5FF',
+    borderRadius: 12,
+    minHeight: 90,
+    padding: 10,
+  },
+  deniedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, gap: 8 },
+  deniedTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  deniedText: { color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
+});

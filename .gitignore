@@ -1,0 +1,26 @@
+DB2.sql
+
+# Secrets / env files
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies
+**/node_modules/
+
+# Build / cache
+**/dist/
+**/.expo/
+**/.expo-shared/
+
+# Logs
+**/*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
