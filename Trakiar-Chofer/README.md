@@ -24,6 +24,8 @@ npm install
 npm run start
 ```
 
+hola, esto es una prueba uwu
+
 ## Estructura principal
 
 - `src/context/AuthContext.js`: sesión y validación de rol chofer.
