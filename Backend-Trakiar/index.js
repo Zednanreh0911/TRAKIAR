@@ -10,29 +10,10 @@ const app = express();
 const PORT = 3000;
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  'http://localhost:19006',
-  'http://127.0.0.1:19006',
-  'http://localhost:8081',
-  'http://127.0.0.1:8081',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:8082',
-  'http://127.0.0.1:8082'
-];
-
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permite requests sin origin (apps móviles, Postman, curl)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+    // Permite todos los orígenes (incluye apps móviles, Postman, curl y frontends externos)
+    return callback(null, true);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

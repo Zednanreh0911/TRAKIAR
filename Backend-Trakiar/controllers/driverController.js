@@ -1,5 +1,10 @@
 const pool = require('../db');
 
+const EARTH_RADIUS_METERS = 6371000;
+const AUTO_ROUTE_MIN_POINTS_REQUIRED = 8;
+const AUTO_ROUTE_MAX_POINTS = 60;
+const AUTO_ROUTE_MIN_DISTANCE_METERS = 120;
+
 const parseCapturedAt = (value) => {
   if (!value) {
     return null;
@@ -7,6 +12,77 @@ const parseCapturedAt = (value) => {
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const haversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a));
+};
+
+const buildAutoRouteInterestPoints = (normalizedPoints) => {
+  if (!Array.isArray(normalizedPoints) || normalizedPoints.length === 0) {
+    return [];
+  }
+
+  const spaced = [];
+
+  for (const point of normalizedPoints) {
+    if (spaced.length === 0) {
+      spaced.push(point);
+      continue;
+    }
+
+    const last = spaced[spaced.length - 1];
+    const distance = haversineDistanceMeters(last.latitud, last.longitud, point.latitud, point.longitud);
+
+    if (distance >= AUTO_ROUTE_MIN_DISTANCE_METERS) {
+      spaced.push(point);
+    }
+  }
+
+  const lastRawPoint = normalizedPoints[normalizedPoints.length - 1];
+  const lastSpacedPoint = spaced[spaced.length - 1];
+  if (
+    lastRawPoint &&
+    lastSpacedPoint &&
+    (Number(lastRawPoint.latitud) !== Number(lastSpacedPoint.latitud) ||
+      Number(lastRawPoint.longitud) !== Number(lastSpacedPoint.longitud))
+  ) {
+    spaced.push(lastRawPoint);
+  }
+
+  if (spaced.length < AUTO_ROUTE_MIN_POINTS_REQUIRED) {
+    return [];
+  }
+
+  let sampled = spaced;
+  if (spaced.length > AUTO_ROUTE_MAX_POINTS) {
+    const step = (spaced.length - 1) / (AUTO_ROUTE_MAX_POINTS - 1);
+    sampled = Array.from({ length: AUTO_ROUTE_MAX_POINTS }, (_, index) => spaced[Math.round(index * step)]);
+  }
+
+  const deduped = sampled.filter((point, index) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const prev = sampled[index - 1];
+    return Number(prev.latitud) !== Number(point.latitud) || Number(prev.longitud) !== Number(point.longitud);
+  });
+
+  return deduped.map((point, index) => ({
+    nombre: `Punto ${index + 1}`,
+    orden: index + 1,
+    latitud: point.latitud,
+    longitud: point.longitud,
+  }));
 };
 
 const getDriverUnitScope = async (idUsuario) => {
@@ -259,11 +335,60 @@ const registerDriverLocationsBatch = async (req, res) => {
       values
     );
 
+    let autoRouteConfiguration = {
+      applied: false,
+      reason: 'already_configured',
+      totalPointsCreated: 0,
+    };
+
+    const existingInterestPoints = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM punto_interes WHERE id_ruta = $1',
+      [idRuta]
+    );
+
+    const hasInterestPoints = Number(existingInterestPoints.rows[0]?.total || 0) > 0;
+
+    if (!hasInterestPoints) {
+      const autoInterestPoints = buildAutoRouteInterestPoints(normalizedPoints);
+
+      if (autoInterestPoints.length > 0) {
+        const pointValues = [];
+        const pointPlaceholders = autoInterestPoints
+          .map((point, index) => {
+            const base = index * 5;
+            pointValues.push(idRuta, point.nombre, point.orden, point.latitud, point.longitud);
+            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+          })
+          .join(', ');
+
+        const createdPoints = await pool.query(
+          `INSERT INTO punto_interes (id_ruta, nombre, orden, latitud, longitud)
+           VALUES ${pointPlaceholders}
+           RETURNING id`,
+          pointValues
+        );
+
+        autoRouteConfiguration = {
+          applied: true,
+          reason: 'first_pass_seeded_route',
+          totalPointsCreated: createdPoints.rows.length,
+        };
+      } else {
+        autoRouteConfiguration = {
+          applied: false,
+          reason: 'insufficient_points_for_auto_configuration',
+          totalPointsCreated: 0,
+          minimumRequired: AUTO_ROUTE_MIN_POINTS_REQUIRED,
+        };
+      }
+    }
+
     return res.status(201).json({
       message: 'Ubicaciones registradas exitosamente',
       idRuta,
       totalRecibidos: puntos.length,
       totalInsertados: insert.rows.length,
+      autoRouteConfiguration,
       primeraUbicacion: insert.rows[0] || null,
       ultimaUbicacion: insert.rows[insert.rows.length - 1] || null,
     });

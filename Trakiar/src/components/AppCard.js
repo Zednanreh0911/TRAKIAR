@@ -1,21 +1,25 @@
 import { StyleSheet, View } from 'react-native';
 import { colors } from '../theme/colors';
 
-export default function AppCard({ children }) {
-  return <View style={styles.card}>{children}</View>;
+export default function AppCard({ children, style, variant = 'default' }) {
+  return <View style={[styles.card, variant === 'soft' && styles.cardSoft, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
+    borderColor: colors.borderStrong,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  cardSoft: {
+    backgroundColor: colors.surfaceSoft,
     borderColor: colors.border,
-    shadowColor: '#101828',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
   },
 });

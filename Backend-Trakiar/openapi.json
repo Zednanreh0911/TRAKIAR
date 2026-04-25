@@ -244,6 +244,103 @@
         }
       }
     },
+    "/api/users/routes/{idRuta}/eta": {
+      "get": {
+        "summary": "Estimar ETA al punto de encuentro más cercano del usuario con fallback inteligente",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "idRuta",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 5
+            }
+          },
+          {
+            "name": "latitud",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "float",
+              "example": 7.1193
+            }
+          },
+          {
+            "name": "longitud",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "float",
+              "example": -73.1227
+            }
+          },
+          {
+            "name": "idUnidad",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 12
+            },
+            "description": "Opcional. Si se envía, la estimación prioriza esa unidad."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ETA calculado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": ["realtime_recent", "historical_day_hour", "last_known_speed"]
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": ["high", "medium", "low"]
+                    },
+                    "etaMinutos": { "type": "integer", "example": 6 },
+                    "etaRangoMinutos": {
+                      "type": "object",
+                      "properties": {
+                        "min": { "type": "integer", "example": 5 },
+                        "max": { "type": "integer", "example": 8 }
+                      }
+                    },
+                    "nearestStop": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "nombre": { "type": "string" },
+                        "distanciaUsuarioKm": { "type": "number", "format": "float" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "Token requerido o inválido"
+          },
+          "404": {
+            "description": "Ruta sin datos suficientes para estimar ETA"
+          },
+          "500": {
+            "description": "Error interno al calcular ETA"
+          }
+        }
+      }
+    },
     "/api/users/create-unit": {
       "post": {
         "summary": "Crear una unidad en la línea del gerente autenticado",

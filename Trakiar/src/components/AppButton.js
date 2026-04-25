@@ -1,7 +1,15 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 
-export default function AppButton({ title, onPress, variant = 'primary', loading = false, disabled = false }) {
+export default function AppButton({
+  title,
+  onPress,
+  variant = 'primary',
+  loading = false,
+  disabled = false,
+  iconName,
+}) {
   const isPrimary = variant === 'primary';
 
   return (
@@ -18,7 +26,17 @@ export default function AppButton({ title, onPress, variant = 'primary', loading
       {loading ? (
         <ActivityIndicator color={isPrimary ? '#fff' : colors.primary} />
       ) : (
-        <Text style={[styles.label, isPrimary ? styles.labelPrimary : styles.labelSecondary]}>{title}</Text>
+        <>
+          {!!iconName && (
+            <MaterialCommunityIcons
+              name={iconName}
+              size={18}
+              color={isPrimary ? '#fff' : colors.primary}
+              style={styles.icon}
+            />
+          )}
+          <Text style={[styles.label, isPrimary ? styles.labelPrimary : styles.labelSecondary]}>{title}</Text>
+        </>
       )}
     </Pressable>
   );
@@ -26,26 +44,33 @@ export default function AppButton({ title, onPress, variant = 'primary', loading
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 50,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
   },
   primary: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    shadowColor: colors.primaryDark,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   secondary: {
     backgroundColor: '#fff',
-    borderColor: colors.primary,
+    borderColor: colors.borderStrong,
   },
   disabled: {
     opacity: 0.6,
   },
   pressed: {
-    transform: [{ scale: 0.99 }],
+    transform: [{ scale: 0.985 }],
   },
   label: {
     fontWeight: '700',
@@ -56,5 +81,8 @@ const styles = StyleSheet.create({
   },
   labelSecondary: {
     color: colors.primary,
+  },
+  icon: {
+    marginRight: 2,
   },
 });

@@ -6,6 +6,12 @@ export const createRealtimeSocket = ({ token, onOpen, onMessage, onError, onClos
   }
 
   const socketUrl = `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
+
+  if (!/^wss?:\/\//i.test(socketUrl)) {
+    onError?.(new Error(`URL WebSocket inválida: ${socketUrl}`));
+    return null;
+  }
+
   const socket = new WebSocket(socketUrl);
 
   socket.onopen = () => {

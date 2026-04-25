@@ -7,11 +7,38 @@ const defaultServerByPlatform = {
   default: 'http://localhost:3000',
 };
 
+const ensureHttpProtocol = (rawUrl) => {
+  const value = String(rawUrl || '').trim();
+
+  if (!value) {
+    return defaultServerByPlatform.default;
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  return `http://${value}`;
+};
+
 const serverBaseUrl =
-  process.env.EXPO_PUBLIC_SERVER_URL ||
+  ensureHttpProtocol(process.env.EXPO_PUBLIC_SERVER_URL) ||
   defaultServerByPlatform[Platform.OS] ||
   defaultServerByPlatform.default;
 
 export const SERVER_BASE_URL = serverBaseUrl.replace(/\/$/, '');
 export const API_BASE_URL = `${SERVER_BASE_URL}/api/users`;
-export const WS_BASE_URL = SERVER_BASE_URL.replace(/^http/i, 'ws');
+
+const toWsBaseUrl = (httpBaseUrl) => {
+  if (/^https:\/\//i.test(httpBaseUrl)) {
+    return httpBaseUrl.replace(/^https/i, 'wss');
+  }
+
+  if (/^http:\/\//i.test(httpBaseUrl)) {
+    return httpBaseUrl.replace(/^http/i, 'ws');
+  }
+
+  return `ws://${httpBaseUrl.replace(/^\/+/, '')}`;
+};
+
+export const WS_BASE_URL = toWsBaseUrl(SERVER_BASE_URL);

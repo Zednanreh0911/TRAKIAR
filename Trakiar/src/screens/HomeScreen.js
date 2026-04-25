@@ -1,64 +1,129 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import AnimatedEntrance from '../components/AnimatedEntrance';
 import AppButton from '../components/AppButton';
 import AppCard from '../components/AppCard';
+import AppHeroHeader from '../components/AppHeroHeader';
+import AppInput from '../components/AppInput';
 import AppScreen from '../components/AppScreen';
+import RouteResultCard from '../components/RouteResultCard';
 import { useAuth } from '../context/AuthContext';
+import { getFavoriteRoutes, isRouteFavorite, toggleFavoriteRoute } from '../services/favoritesService';
+import { searchRoutes } from '../services/apiService';
 import { colors } from '../theme/colors';
+import { getErrorText } from '../utils/error';
 
 export default function HomeScreen({ navigation }) {
-  const { user, signOut } = useAuth();
-  const isManager = user?.rol === 'gerente';
+  const { user, token } = useAuth();
+  const [query, setQuery] = useState('');
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [routes, setRoutes] = useState([]);
+  const [searched, setSearched] = useState(false);
+  const [favorites, setFavorites] = useState([]);
 
-  const onSignOut = async () => {
-    await signOut();
+  useFocusEffect(
+    useCallback(() => {
+      const loadFavorites = async () => {
+        const stored = await getFavoriteRoutes(user?.id);
+        setFavorites(stored);
+      };
+
+      loadFavorites();
+    }, [user?.id])
+  );
+
+  const handleSearch = async () => {
+    const normalized = query.trim();
+
+    if (normalized.length < 2) {
+      setSearchError('Escribe al menos 2 caracteres para buscar rutas.');
+      return;
+    }
+
+    try {
+      setLoadingSearch(true);
+      setSearchError('');
+      const response = await searchRoutes(token, normalized);
+      setRoutes(response?.rutas || []);
+      setSearched(true);
+    } catch (error) {
+      setRoutes([]);
+      setSearched(true);
+      setSearchError(getErrorText(error));
+    } finally {
+      setLoadingSearch(false);
+    }
+  };
+
+  const handleSelectRoute = (routeItem) => {
+    navigation.navigate('UserMap', {
+      selectedRouteId: String(routeItem.id),
+      selectedRouteLabel: `${routeItem.nombre} · ${routeItem.linea_nombre || 'Sin línea'}`,
+    });
+  };
+
+  const handleToggleFavorite = async (routeItem) => {
+    const next = await toggleFavoriteRoute(user?.id, routeItem);
+    setFavorites(next);
   };
 
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <Text style={styles.title}>¡Bienvenido a Trakiar!</Text>
-          <Text style={styles.subtitle}>
-            Gestiona tu cuenta y consulta tus acciones disponibles según tu rol.
-          </Text>
-        </View>
+        <AnimatedEntrance>
+          <View style={styles.hero}>
+            <AppHeroHeader
+              title="Bienvenido a trakiar"
+              subtitle="Encuentra tu ruta y ve en el mapa el recorrido y el punto próximo de arribo."
+            />
+          </View>
+        </AnimatedEntrance>
 
-        <AppCard>
-          <Text style={styles.sectionTitle}>Tu cuenta</Text>
-          <Text style={styles.detail}>Rol actual: <Text style={styles.strong}>{user?.rol || 'usuario'}</Text></Text>
-          <Text style={styles.detail}>ID de usuario: <Text style={styles.strong}>{user?.id || 'N/D'}</Text></Text>
-        </AppCard>
-
-        <AppCard>
-          <Text style={styles.sectionTitle}>Operaciones</Text>
+        <AnimatedEntrance delay={60}>
+          <AppCard>
+          <Text style={styles.sectionTitle}>¿A dónde quieres ir?</Text>
           <View style={styles.gap10}>
-            <Text style={styles.detail}>Busca rutas por línea o por palabras del recorrido (ej. ferrero tamayo).</Text>
+            <AppInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="¿a donde quieres ir?"
+              autoCapitalize="none"
+              returnKeyType="search"
+              onSubmitEditing={handleSearch}
+            />
             <AppButton
-              title="Buscar rutas"
-              variant="secondary"
-              onPress={() => navigation.navigate('RouteSearch')}
+              title={loadingSearch ? 'Buscando...' : 'Buscar'}
+              iconName="magnify"
+              onPress={handleSearch}
+              loading={loadingSearch}
             />
           </View>
 
-          {isManager ? (
-            <View style={styles.gap10}>
-              <Text style={styles.detail}>Como gerente puedes gestionar choferes, unidades y rutas.</Text>
-              <AppButton
-                title="Abrir herramientas de gerente"
-                variant="secondary"
-                onPress={() => navigation.navigate('ManagerTools')}
-              />
-            </View>
-          ) : (
-            <Text style={[styles.detail, styles.nonManagerText]}>
-              Tu cuenta no tiene funciones administrativas. Si necesitas permisos de gerente, solicita autorización al administrador.
-            </Text>
-          )}
+          {!!searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
+          </AppCard>
+        </AnimatedEntrance>
 
-          <View style={styles.signOutWrap}>
-            <AppButton title="Cerrar sesión" variant="secondary" onPress={onSignOut} />
-          </View>
-        </AppCard>
+        {searched && routes.length === 0 && !loadingSearch ? (
+          <AnimatedEntrance delay={110}>
+            <AppCard variant="soft">
+              <Text style={styles.sectionTitle}>Sin coincidencias</Text>
+              <Text style={styles.detail}>Prueba con otra palabra clave o el nombre de la línea.</Text>
+            </AppCard>
+          </AnimatedEntrance>
+        ) : null}
+
+        {routes.map((routeItem, index) => (
+          <AnimatedEntrance key={String(routeItem.id)} delay={90 + index * 35}>
+            <RouteResultCard
+              routeItem={routeItem}
+              onPress={() => handleSelectRoute(routeItem)}
+              isFavorite={isRouteFavorite(favorites, routeItem.id)}
+              onToggleFavorite={() => handleToggleFavorite(routeItem)}
+            />
+          </AnimatedEntrance>
+        ))}
       </ScrollView>
     </AppScreen>
   );
@@ -67,42 +132,29 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   content: {
     paddingBottom: 28,
-    gap: 14,
+    gap: 16,
   },
   hero: {
-    gap: 6,
+    gap: 8,
     marginTop: 6,
-  },
-  title: {
-    color: colors.text,
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: colors.textMuted,
-    lineHeight: 20,
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     marginBottom: 8,
   },
   detail: {
     color: colors.textMuted,
     lineHeight: 20,
   },
-  strong: {
-    color: colors.text,
-    fontWeight: '700',
-  },
   gap10: {
     gap: 10,
   },
-  nonManagerText: {
-    marginTop: 12,
-  },
-  signOutWrap: {
-    marginTop: 14,
+  errorText: {
+    marginTop: 10,
+    color: colors.danger,
+    lineHeight: 19,
+    fontWeight: '600',
   },
 });

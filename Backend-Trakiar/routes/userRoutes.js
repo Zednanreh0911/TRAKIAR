@@ -15,7 +15,15 @@ const {
   updateUnitDriver,
   deleteUnit,
 } = require('../controllers/unitController');
-const { addRoute, listRoutesByLine, searchRoutes, editRoute, deleteRoute } = require('../controllers/routeController');
+const {
+  addRoute,
+  listRoutesByLine,
+  searchRoutes,
+  listPublicRoutesCatalog,
+  estimateEtaToNearestStop,
+  editRoute,
+  deleteRoute,
+} = require('../controllers/routeController');
 const verifyToken = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -129,6 +137,12 @@ router.get('/routes-by-line', verifyToken, (req, res, next) => {
 
 // Ruta para buscar rutas por línea, nombre o descripción (usuarios autenticados)
 router.get('/search-routes', verifyToken, searchRoutes);
+
+// Catálogo de líneas y rutas para usuarios autenticados
+router.get('/routes-catalog', verifyToken, listPublicRoutesCatalog);
+
+// Ruta para estimar ETA al punto de encuentro más cercano del usuario
+router.get('/routes/:idRuta/eta', verifyToken, estimateEtaToNearestStop);
 
 // Ruta para editar una ruta
 router.put('/edit-route/:idRuta', verifyToken, (req, res, next) => {

@@ -9,6 +9,8 @@ const api = axios.create({
   },
 });
 
+const ETA_REQUEST_TIMEOUT_MS = 30000;
+
 export const checkServer = async () => {
   const response = await axios.get(`${SERVER_BASE_URL}/`);
   return response.data;
@@ -88,6 +90,21 @@ export const searchRoutes = async (token, query) => {
       q: query,
     },
   });
+  return response.data;
+};
+
+export const getRoutesCatalog = async (token) => {
+  const response = await api.get('/routes-catalog', authHeaders(token));
+  return response.data;
+};
+
+export const estimateRouteEta = async (token, idRuta, params) => {
+  const response = await api.get(`/routes/${idRuta}/eta`, {
+    ...authHeaders(token),
+    params,
+    timeout: ETA_REQUEST_TIMEOUT_MS,
+  });
+
   return response.data;
 };
 
