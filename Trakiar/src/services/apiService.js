@@ -46,6 +46,11 @@ export const promoteToDriver = async (token, payload) => {
   return response.data;
 };
 
+export const demoteDriver = async (token, payload) => {
+  const response = await api.post('/demote-driver', payload, authHeaders(token));
+  return response.data;
+};
+
 export const createUnit = async (token, payload) => {
   const response = await api.post('/create-unit', payload, authHeaders(token));
   return response.data;
@@ -65,6 +70,11 @@ export const assignUnit = async (token, payload) => {
 
 export const updateUnitDriver = async (token, payload) => {
   const response = await api.put('/update-unit-driver', payload, authHeaders(token));
+  return response.data;
+};
+
+export const updateUnitStatus = async (token, payload) => {
+  const response = await api.put('/update-unit-status', payload, authHeaders(token));
   return response.data;
 };
 
@@ -95,6 +105,11 @@ export const searchRoutes = async (token, query) => {
 
 export const getRoutesCatalog = async (token) => {
   const response = await api.get('/routes-catalog', authHeaders(token));
+  return response.data;
+};
+
+export const getManagerStats = async (token) => {
+  const response = await api.get('/manager-stats', authHeaders(token));
   return response.data;
 };
 

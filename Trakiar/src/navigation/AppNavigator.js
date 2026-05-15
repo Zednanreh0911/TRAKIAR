@@ -10,6 +10,7 @@ import FavoritesScreen from '../screens/FavoritesScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import ManagerToolsScreen from '../screens/ManagerToolsScreen';
+import ManagerStatsScreen from '../screens/ManagerStatsScreen';
 import PeopleManagementScreen from '../screens/PeopleManagementScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -27,7 +28,7 @@ const Tab = createBottomTabNavigator();
 
 const screenOptions = {
   headerStyle: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   headerTintColor: colors.text,
   headerShadowVisible: false,
@@ -52,16 +53,17 @@ function NativeMainTabs() {
     <NativeTab.Navigator
       screenOptions={({ route }) => ({
         headerStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: colors.surface,
         },
         headerTintColor: colors.text,
         headerShadowVisible: false,
+        headerShown: false,
         translucent: true,
         minimizeBehavior: 'automatic',
         tabBarStyle: {
-          backgroundColor: '#FFFFFFCC',
+          backgroundColor: colors.surface,
         },
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.warning,
         tabBarInactiveTintColor: colors.textLight,
         tabBarLabelStyle: {
           fontSize: 12,
@@ -95,19 +97,20 @@ function JsMainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: colors.surface,
         },
         headerTintColor: colors.text,
         headerShadowVisible: false,
+        headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
           height: 56 + safeBottom,
           paddingBottom: safeBottom,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.warning,
         tabBarInactiveTintColor: colors.textLight,
         tabBarLabelStyle: {
           fontSize: 12,
@@ -117,7 +120,7 @@ function JsMainTabs() {
         tabBarIconStyle: {
           marginTop: -2,
         },
-        tabBarIcon: ({ color, size }) => {
+        tabBarIcon: ({ color, size, focused }) => {
           const icons = {
             HomeTab: 'home-variant-outline',
             FavoritesTab: 'heart-outline',
@@ -125,7 +128,12 @@ function JsMainTabs() {
             ProfileTab: 'account-circle-outline',
           };
 
-          return <MaterialCommunityIcons name={icons[route.name] || 'circle-outline'} size={size} color={color} />;
+          return (
+            <View style={styles.tabIconWrap}>
+              <View style={[styles.tabIndicator, focused && styles.tabIndicatorActive]} />
+              <MaterialCommunityIcons name={icons[route.name] || 'circle-outline'} size={size} color={color} />
+            </View>
+          );
         },
       })}
     >
@@ -169,8 +177,8 @@ export default function AppNavigator() {
     <NavigationContainer>
       {!token ? (
         <Stack.Navigator screenOptions={screenOptions}>
-          <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Bienvenido a Trakiar' }} />
-          <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Crear cuenta' }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       ) : (
         <Stack.Navigator screenOptions={screenOptions}>
@@ -182,27 +190,32 @@ export default function AppNavigator() {
               <Stack.Screen
                 name="ManagerTools"
                 component={ManagerToolsScreen}
-                options={{ title: 'Gestión de operaciones' }}
+                options={{ title: 'Gestión de operaciones', headerShown: false }}
               />
               <Stack.Screen
                 name="PeopleManagement"
                 component={PeopleManagementScreen}
-                options={{ title: 'Gestión de personas' }}
+                options={{ title: 'Gestión de personas', headerShown: false }}
               />
               <Stack.Screen
                 name="UnitsManagement"
                 component={UnitsManagementScreen}
-                options={{ title: 'Gestión de unidades' }}
+                options={{ title: 'Gestión de unidades', headerShown: false }}
               />
               <Stack.Screen
                 name="RoutesManagement"
                 component={RoutesManagementScreen}
-                options={{ title: 'Gestión de rutas' }}
+                options={{ title: 'Gestión de rutas', headerShown: false }}
               />
               <Stack.Screen
                 name="ActiveRoutesLive"
                 component={ActiveRoutesLiveScreen}
-                options={{ title: 'Rutas activas en vivo' }}
+                options={{ title: 'Rutas activas en vivo', headerShown: false }}
+              />
+              <Stack.Screen
+                name="ManagerStats"
+                component={ManagerStatsScreen}
+                options={{ title: 'Estadísticas operativas', headerShown: false }}
               />
             </>
           ) : null}
@@ -218,5 +231,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.background,
+  },
+  tabIconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  tabIndicator: {
+    width: 18,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: colors.warning,
+    opacity: 0,
+  },
+  tabIndicatorActive: {
+    opacity: 1,
   },
 });

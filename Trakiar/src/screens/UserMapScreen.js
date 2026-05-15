@@ -6,6 +6,7 @@ import AppButton from '../components/AppButton';
 import AppCard from '../components/AppCard';
 import { useAuth } from '../context/AuthContext';
 import { estimateRouteEta } from '../services/apiService';
+import { createPassengerRealtimeSocket } from '../services/realtimeService';
 import { colors } from '../theme/colors';
 import { getErrorText } from '../utils/error';
 
@@ -29,6 +30,7 @@ const INITIAL_REGION = {
 
 const LOCATION_REFRESH_MS = 25000;
 const ETA_REFRESH_MS = 20000;
+const REALTIME_STALE_MS = 45000;
 
 const formatEtaMessage = (etaPayload) => {
   if (!etaPayload) {
@@ -43,6 +45,7 @@ export default function UserMapScreen({ navigation, route }) {
   const mapRef = useRef(null);
   const etaPollRef = useRef(null);
   const locationPollRef = useRef(null);
+  const realtimeSocketRef = useRef(null);
   const etaCacheRef = useRef(new Map());
 
   const [permissionStatus, setPermissionStatus] = useState('pending');
@@ -53,6 +56,7 @@ export default function UserMapScreen({ navigation, route }) {
   const [etaData, setEtaData] = useState(null);
   const [etaError, setEtaError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
+  const [realtimeBus, setRealtimeBus] = useState(null);
 
   const isTimeoutError = useCallback(
     (error) =>
@@ -77,7 +81,27 @@ export default function UserMapScreen({ navigation, route }) {
     };
   }, [etaData]);
 
+  const realtimeCoordinate = useMemo(() => {
+    if (!realtimeBus?.latitud || !realtimeBus?.longitud) {
+      return null;
+    }
+
+    const lastUpdate = new Date(realtimeBus.lastUpdate || realtimeBus.capturedAt || 0).getTime();
+    if (!lastUpdate || Date.now() - lastUpdate > REALTIME_STALE_MS) {
+      return null;
+    }
+
+    return {
+      latitude: Number(realtimeBus.latitud),
+      longitude: Number(realtimeBus.longitud),
+    };
+  }, [realtimeBus]);
+
   const unitCoordinate = useMemo(() => {
+    if (realtimeCoordinate) {
+      return realtimeCoordinate;
+    }
+
     if (!etaData?.bus?.latitud || !etaData?.bus?.longitud) {
       return null;
     }
@@ -86,7 +110,7 @@ export default function UserMapScreen({ navigation, route }) {
       latitude: Number(etaData.bus.latitud),
       longitude: Number(etaData.bus.longitud),
     };
-  }, [etaData]);
+  }, [etaData, realtimeCoordinate]);
 
   const routePolylineCoordinates = useMemo(() => {
     const points = etaData?.routeShape?.coordinates;
@@ -218,6 +242,10 @@ export default function UserMapScreen({ navigation, route }) {
       if (etaPollRef.current) {
         clearInterval(etaPollRef.current);
       }
+      if (realtimeSocketRef.current) {
+        realtimeSocketRef.current.close();
+        realtimeSocketRef.current = null;
+      }
     };
   }, [requestLocationAccess]);
 
@@ -242,6 +270,56 @@ export default function UserMapScreen({ navigation, route }) {
       });
     }, ETA_REFRESH_MS);
   }, [selectedRoute, userLocation, refreshEta]);
+
+  useEffect(() => {
+    if (!token || !selectedRoute) {
+      if (realtimeSocketRef.current) {
+        realtimeSocketRef.current.close();
+        realtimeSocketRef.current = null;
+      }
+      setRealtimeBus(null);
+      return;
+    }
+
+    if (realtimeSocketRef.current) {
+      realtimeSocketRef.current.close();
+      realtimeSocketRef.current = null;
+    }
+
+    setRealtimeBus(null);
+
+    realtimeSocketRef.current = createPassengerRealtimeSocket({
+      token,
+      idRuta: selectedRoute,
+      onOpen: () => {},
+      onClose: () => {},
+      onError: () => {},
+      onMessage: (payload) => {
+        if (payload?.type === 'driver_location' && payload?.data) {
+          const lastUpdate = payload?.data?.lastUpdate || payload?.data?.ultimaUbicacion?.capturedAt || null;
+          const latitud = payload?.data?.ultimaUbicacion?.latitud ?? payload?.data?.latitud;
+          const longitud = payload?.data?.ultimaUbicacion?.longitud ?? payload?.data?.longitud;
+          const velocidadKmh = payload?.data?.ultimaUbicacion?.velocidadKmh ?? payload?.data?.velocidadKmh ?? null;
+
+          if (latitud != null && longitud != null) {
+            setRealtimeBus({
+              latitud: Number(latitud),
+              longitud: Number(longitud),
+              velocidadKmh,
+              lastUpdate,
+            });
+          }
+        }
+      },
+    });
+
+    return () => {
+      if (realtimeSocketRef.current) {
+        realtimeSocketRef.current.close();
+        realtimeSocketRef.current = null;
+      }
+    };
+  }, [selectedRoute, token]);
 
   if (Platform.OS === 'web') {
     return (

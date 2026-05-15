@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AppCard from '../components/AppCard';
 import AppScreen from '../components/AppScreen';
 import { useAuth } from '../context/AuthContext';
@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
   content: {
     gap: 14,
     paddingBottom: 28,
+    paddingTop: Platform.select({ ios:10, android: 50, default: 50 }),
   },
   header: {
     color: colors.text,
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 99,
-    backgroundColor: '#13A95A',
+    backgroundColor: colors.warning,
   },
   statusText: {
     color: colors.text,

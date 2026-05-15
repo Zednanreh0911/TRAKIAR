@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import AppDropdown from '../components/AppDropdown';
 import { useAuth } from '../context/AuthContext';
-import { getDriverRoutes, registerDriverLocationsBatch } from '../services/apiService';
+import { getDriverRoutes, registerDriverLocation, registerDriverLocationsBatch } from '../services/apiService';
 import { createRealtimeSocket, sendDriverRealtimeLocation } from '../services/realtimeService';
 import RouteSummaryScreen from './RouteSummaryScreen';
 import { getErrorText } from '../utils/error';
@@ -78,11 +78,27 @@ export default function DriverHomeScreen() {
     const bufferKey = getRouteBufferKey(routeId);
     const previousRaw = await AsyncStorage.getItem(bufferKey);
     const previousPoints = previousRaw ? JSON.parse(previousRaw) : [];
-    const updatedPoints = [...previousPoints, point];
+    const updatedPoints = [...previousPoints, { ...point, synced: false }];
 
     await AsyncStorage.setItem(bufferKey, JSON.stringify(updatedPoints));
     setBufferedCount(updatedPoints.length);
     return updatedPoints.length;
+  };
+
+  const markLastBufferedPointSynced = async (routeId) => {
+    const bufferKey = getRouteBufferKey(routeId);
+    const previousRaw = await AsyncStorage.getItem(bufferKey);
+    const previousPoints = previousRaw ? JSON.parse(previousRaw) : [];
+
+    if (previousPoints.length === 0) {
+      return;
+    }
+
+    const updatedPoints = [...previousPoints];
+    const lastIndex = updatedPoints.length - 1;
+    updatedPoints[lastIndex] = { ...updatedPoints[lastIndex], synced: true };
+
+    await AsyncStorage.setItem(bufferKey, JSON.stringify(updatedPoints));
   };
 
   const captureAndBufferLocation = async () => {
@@ -104,20 +120,31 @@ export default function DriverHomeScreen() {
       const speedMs = location?.coords?.speed;
       const speedKmh = typeof speedMs === 'number' && speedMs > 0 ? Number((speedMs * 3.6).toFixed(2)) : null;
 
-      const total = await appendPointToBuffer(routeId, {
+      const payload = {
         latitud: location.coords.latitude,
         longitud: location.coords.longitude,
         velocidadKmh: speedKmh,
         capturedAt: new Date().toISOString(),
-      });
+      };
+
+      const total = await appendPointToBuffer(routeId, payload);
 
       sendDriverRealtimeLocation(realtimeSocketRef.current, {
         idRuta: routeId,
-        latitud: location.coords.latitude,
-        longitud: location.coords.longitude,
-        velocidadKmh: speedKmh,
-        capturedAt: new Date().toISOString(),
+        ...payload,
       });
+
+      if (token) {
+        try {
+          await registerDriverLocation(token, {
+            idRuta: routeId,
+            ...payload,
+          });
+          await markLastBufferedPointSynced(routeId);
+        } catch {
+          // Se mantiene en buffer para reintento al finalizar
+        }
+      }
 
       setLiveStatus('ok');
       setLastCaptureText(new Date().toLocaleTimeString());
@@ -159,6 +186,7 @@ export default function DriverHomeScreen() {
     try {
       const raw = await AsyncStorage.getItem(bufferKey);
       const points = raw ? JSON.parse(raw) : [];
+      const pendingPoints = points.filter((point) => !point?.synced);
       const finishedAtMs = Date.now();
       const summary = getRouteSummary(points, startedAtMs, finishedAtMs);
       const currentRouteName = routes.find((route) => Number(route.id) === Number(routeId))?.nombre || `Ruta ${routeId}`;
@@ -176,21 +204,37 @@ export default function DriverHomeScreen() {
         return;
       }
 
-      setTrackText(`Finalizando ruta... enviando ${points.length} puntos guardados.`);
-      await registerDriverLocationsBatch(token, {
-        idRuta: routeId,
-        puntos: points,
-      });
+      if (pendingPoints.length > 0) {
+        const pendingPayload = pendingPoints.map((point) => ({
+          latitud: point.latitud,
+          longitud: point.longitud,
+          velocidadKmh: point.velocidadKmh,
+          capturedAt: point.capturedAt,
+        }));
+
+        setTrackText(`Finalizando ruta... enviando ${pendingPayload.length} puntos pendientes.`);
+        await registerDriverLocationsBatch(token, {
+          idRuta: routeId,
+          puntos: pendingPayload,
+        });
+      }
 
       await AsyncStorage.removeItem(bufferKey);
       setBufferedCount(0);
-      setTrackText(`Ruta finalizada. Se enviaron ${points.length} puntos correctamente.`);
+      setTrackText(
+        pendingPoints.length > 0
+          ? `Ruta finalizada. Se enviaron ${pendingPoints.length} puntos correctamente.`
+          : 'Ruta finalizada. Todos los puntos ya estaban sincronizados.'
+      );
 
       setRouteSummary({
         ...summary,
         routeName: currentRouteName,
         syncStatus: 'completed',
-        syncMessage: `Se enviaron ${summary.totalPoints} puntos correctamente.`,
+        syncMessage:
+          pendingPoints.length > 0
+            ? `Se enviaron ${pendingPoints.length} puntos correctamente.`
+            : 'Todos los puntos ya estaban sincronizados en tiempo real.',
       });
     } catch (error) {
       setTrackText(getErrorText(error, 'No se pudieron enviar los puntos. Quedaron guardados localmente.'));

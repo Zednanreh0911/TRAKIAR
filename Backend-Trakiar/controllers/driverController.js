@@ -148,6 +148,54 @@ const promoteToDriver = async (req, res) => {
   }
 };
 
+const demoteDriverToUser = async (req, res) => {
+  const { correo } = req.body;
+
+  if (!correo) {
+    return res.status(400).json({ error: 'El correo es obligatorio' });
+  }
+
+  let transactionStarted = false;
+
+  try {
+    const usuario = await pool.query('SELECT id, rol FROM usuario WHERE correo = $1', [correo]);
+    if (usuario.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const usuarioEncontrado = usuario.rows[0];
+    if (usuarioEncontrado.rol !== 'chofer') {
+      return res.status(400).json({ error: 'El usuario no es chofer' });
+    }
+
+    await pool.query('BEGIN');
+    transactionStarted = true;
+
+    const chofer = await pool.query('SELECT id FROM chofer WHERE id_usuario = $1', [usuarioEncontrado.id]);
+
+    if (chofer.rows.length > 0) {
+      const idChofer = chofer.rows[0].id;
+      await pool.query('UPDATE unidad SET id_chofer = NULL WHERE id_chofer = $1', [idChofer]);
+      await pool.query('DELETE FROM chofer WHERE id = $1', [idChofer]);
+    }
+
+    await pool.query('UPDATE usuario SET rol = $1 WHERE id = $2', ['pasajero', usuarioEncontrado.id]);
+
+    await pool.query('COMMIT');
+
+    return res.status(200).json({
+      message: 'Chofer degradado a usuario exitosamente',
+      usuarioId: usuarioEncontrado.id,
+    });
+  } catch (error) {
+    if (transactionStarted) {
+      await pool.query('ROLLBACK');
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'Error al degradar chofer a usuario' });
+  }
+};
+
 const getDriverProfile = async (req, res) => {
   try {
     const row = await getDriverUnitScope(req.user.id);
@@ -400,6 +448,7 @@ const registerDriverLocationsBatch = async (req, res) => {
 
 module.exports = {
   promoteToDriver,
+  demoteDriverToUser,
   getDriverProfile,
   getDriverRoutes,
   registerDriverLocation,

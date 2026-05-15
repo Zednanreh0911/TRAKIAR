@@ -12,6 +12,7 @@ import {
 import { checkServer, getProtectedData, loginUser, registerUser } from '../services/apiService';
 import { clearToken, getToken, saveToken } from '../services/storageService';
 import { API_BASE_URL, SERVER_BASE_URL } from '../config/api';
+import { colors } from '../theme/colors';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState('login');
@@ -130,6 +131,7 @@ export default function AuthScreen() {
           placeholder="Nombre"
           value={nombre}
           onChangeText={setNombre}
+          placeholderTextColor={colors.textMuted}
           style={styles.input}
         />
       )}
@@ -140,6 +142,7 @@ export default function AuthScreen() {
         onChangeText={setCorreo}
         autoCapitalize="none"
         keyboardType="email-address"
+        placeholderTextColor={colors.textMuted}
         style={styles.input}
       />
       <TextInput
@@ -147,6 +150,7 @@ export default function AuthScreen() {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        placeholderTextColor={colors.textMuted}
         style={styles.input}
       />
 
@@ -155,7 +159,11 @@ export default function AuthScreen() {
         onPress={mode === 'login' ? onLogin : onRegister}
         disabled={loading}
       >
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</Text>}
+        {loading ? (
+          <ActivityIndicator color={colors.background} />
+        ) : (
+          <Text style={styles.buttonText}>{mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.secondaryButton} onPress={onCheckServer} disabled={loading}>
@@ -196,21 +204,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#2a2a2a',
+    color: colors.text,
     marginTop: 12,
   },
   subtitle: {
-    color: '#666',
+    color: colors.textMuted,
     fontSize: 14,
   },
   endpoint: {
     fontSize: 14,
-    color: '#111',
+    color: colors.text,
     fontWeight: '600',
   },
   endpointSmall: {
     fontSize: 12,
-    color: '#444',
+    color: colors.textMuted,
     marginBottom: 8,
   },
   tabRow: {
@@ -222,33 +230,34 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#d9e1e8',
+    backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
   },
   tabActive: {
-    backgroundColor: '#1f6feb',
+    backgroundColor: colors.primarySoft,
   },
   tabText: {
-    color: '#fff',
+    color: colors.text,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#d0d7de',
+    borderColor: colors.border,
+    color: colors.text,
   },
   button: {
-    backgroundColor: '#1f6feb',
+    backgroundColor: colors.primary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 6,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.background,
     fontWeight: '700',
   },
   secondaryButton: {
@@ -257,25 +266,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#1f6feb',
-    backgroundColor: '#fff',
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.surface,
   },
   secondaryButtonText: {
-    color: '#1f6feb',
+    color: colors.text,
     fontWeight: '600',
   },
   responseTitle: {
     marginTop: 8,
     fontWeight: '700',
-    color: '#222',
+    color: colors.text,
   },
   responseText: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#d0d7de',
-    color: '#111',
+    borderColor: colors.border,
+    color: colors.text,
     minHeight: 90,
   },
 });

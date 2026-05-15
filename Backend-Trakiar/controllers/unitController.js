@@ -203,4 +203,41 @@ const deleteUnit = async (req, res) => {
   }
 };
 
-module.exports = { createUnit, listUnitsByLine, assignUnitToDriver, updateUnitDriver, deleteUnit };
+const updateUnitStatus = async (req, res) => {
+  const { idUnidad, estado } = req.body;
+  const allowedStates = new Set(['activo', 'inactivo', 'mantenimiento']);
+
+  if (!idUnidad || !estado) {
+    return res.status(400).json({ error: 'El id de unidad y el estado son obligatorios' });
+  }
+
+  if (!allowedStates.has(estado)) {
+    return res.status(400).json({ error: 'El estado de la unidad es inválido' });
+  }
+
+  try {
+    const unidad = await getUnitByManagerScope(Number(idUnidad), req.user.id);
+    if (!unidad) {
+      return res.status(404).json({ error: 'Unidad no encontrada o no pertenece a tu línea' });
+    }
+
+    await pool.query('UPDATE unidad SET estado = $1 WHERE id = $2', [estado, idUnidad]);
+    return res.status(200).json({ message: 'Estado de la unidad actualizado exitosamente' });
+  } catch (error) {
+    if (error.code === '22P02') {
+      return res.status(400).json({ error: 'El estado de la unidad es inválido' });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: 'Error al actualizar el estado de la unidad' });
+  }
+};
+
+module.exports = {
+  createUnit,
+  listUnitsByLine,
+  assignUnitToDriver,
+  updateUnitDriver,
+  deleteUnit,
+  updateUnitStatus,
+};

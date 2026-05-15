@@ -1,16 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { loginUser } from '../services/apiService';
-import { clearToken, getToken, saveToken } from '../services/storageService';
+import { clearToken, clearUserMeta, getToken, getUserMeta, saveToken, saveUserMeta } from '../services/storageService';
 
 const AuthContext = createContext(null);
 
-function resolveUser(token) {
+function resolveUser(token, meta = {}) {
   try {
     const payload = jwtDecode(token);
     return {
       id: payload?.id,
       rol: payload?.rol,
+      nombre: payload?.nombre,
+      correo: meta?.correo,
     };
   } catch {
     return null;
@@ -26,8 +28,9 @@ export function AuthProvider({ children }) {
     const bootstrap = async () => {
       try {
         const savedToken = await getToken();
+        const savedMeta = await getUserMeta();
         if (savedToken) {
-          const resolvedUser = resolveUser(savedToken);
+          const resolvedUser = resolveUser(savedToken, savedMeta || {});
           setToken(savedToken);
           setUser(resolvedUser);
         }
@@ -51,19 +54,22 @@ export function AuthProvider({ children }) {
         }
 
         await saveToken(data.token);
-  const resolvedUser = resolveUser(data.token);
+        await saveUserMeta({ correo });
+        const resolvedUser = resolveUser(data.token, { correo });
         setToken(data.token);
         setUser(resolvedUser);
         return data;
       },
       signOut: async () => {
         await clearToken();
+        await clearUserMeta();
         setToken(null);
         setUser(null);
       },
       refreshSession: async () => {
         const savedToken = await getToken();
-        const resolvedUser = savedToken ? resolveUser(savedToken) : null;
+        const savedMeta = await getUserMeta();
+        const resolvedUser = savedToken ? resolveUser(savedToken, savedMeta || {}) : null;
         setToken(savedToken);
         setUser(resolvedUser);
       },

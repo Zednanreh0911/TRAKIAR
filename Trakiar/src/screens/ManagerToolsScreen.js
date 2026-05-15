@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AppCard from '../components/AppCard';
 import AppScreen from '../components/AppScreen';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +33,13 @@ const managerModules = [
     description: 'Monitorea en tiempo real las rutas que están enviando ubicación.',
     icon: 'access-point-network',
     route: 'ActiveRoutesLive',
+  },
+  {
+    key: 'stats',
+    title: 'Estadísticas operativas',
+    description: 'KPIs de disponibilidad, asignaciones y cobertura de rutas.',
+    icon: 'chart-areaspline',
+    route: 'ManagerStats',
   },
 ];
 
@@ -87,6 +94,7 @@ const styles = StyleSheet.create({
   content: {
     gap: 14,
     paddingBottom: 28,
+    paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
   },
   header: {
     color: colors.text,

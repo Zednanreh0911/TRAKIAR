@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AnimatedEntrance from '../components/AnimatedEntrance';
-import AppButton from '../components/AppButton';
+import AccordionSection from '../components/AccordionSection';
 import AppCard from '../components/AppCard';
 import AppHeroHeader from '../components/AppHeroHeader';
 import AppInput from '../components/AppInput';
@@ -105,22 +105,13 @@ export default function RoutesCatalogScreen({ navigation }) {
               autoCapitalize="none"
               returnKeyType="search"
             />
-            <View style={styles.refreshWrap}>
-              <AppButton
-                title={loading ? 'Actualizando...' : 'Actualizar catálogo'}
-                variant="secondary"
-                iconName="refresh"
-                loading={loading}
-                onPress={loadCatalog}
-              />
-            </View>
             {!!error ? <Text style={styles.errorText}>{error}</Text> : null}
           </AppCard>
         </AnimatedEntrance>
 
         {filteredLines.length === 0 && !loading ? (
           <AnimatedEntrance delay={90}>
-            <AppCard variant="soft">
+            <AppCard>
               <Text style={styles.sectionTitle}>Sin resultados</Text>
               <Text style={styles.detail}>No hay rutas que coincidan con tu búsqueda.</Text>
             </AppCard>
@@ -130,20 +121,27 @@ export default function RoutesCatalogScreen({ navigation }) {
         {filteredLines.map((linea, lineIndex) => (
           <AnimatedEntrance key={String(linea.id_linea)} delay={100 + lineIndex * 25}>
             <AppCard>
-              <Text style={styles.lineTitle}>{linea.linea_nombre}</Text>
-              <Text style={styles.detail}>Rutas disponibles: {(linea.rutas || []).length}</Text>
-
-              <View style={styles.routesWrap}>
-                {(linea.rutas || []).map((routeItem) => (
-                  <RouteResultCard
-                    key={String(routeItem.id)}
-                    routeItem={routeItem}
-                    onPress={() => handleOpenMap(routeItem)}
-                    isFavorite={isRouteFavorite(favorites, routeItem.id)}
-                    onToggleFavorite={() => handleToggleFavorite(routeItem)}
-                  />
-                ))}
-              </View>
+              <AccordionSection
+                headerContent={
+                  <View style={styles.lineHeaderText}>
+                    <Text style={styles.lineTitle}>{linea.linea_nombre}</Text>
+                    <Text style={styles.detail}>Rutas disponibles: {(linea.rutas || []).length}</Text>
+                  </View>
+                }
+                contentStyle={styles.routesWrap}
+              >
+                <AnimatedEntrance distance={8} duration={300}>
+                  {(linea.rutas || []).map((routeItem) => (
+                    <RouteResultCard
+                      key={String(routeItem.id)}
+                      routeItem={routeItem}
+                      onPress={() => handleOpenMap(routeItem)}
+                      isFavorite={isRouteFavorite(favorites, routeItem.id)}
+                      onToggleFavorite={() => handleToggleFavorite(routeItem)}
+                    />
+                  ))}
+                </AnimatedEntrance>
+              </AccordionSection>
             </AppCard>
           </AnimatedEntrance>
         ))}
@@ -156,6 +154,7 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 28,
     gap: 14,
+    paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
   },
   sectionTitle: {
     color: colors.text,
@@ -168,13 +167,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
+  lineHeaderText: {
+    flex: 1,
+  },
   detail: {
     color: colors.textMuted,
     lineHeight: 20,
     marginTop: 3,
-  },
-  refreshWrap: {
-    marginTop: 10,
   },
   errorText: {
     marginTop: 10,

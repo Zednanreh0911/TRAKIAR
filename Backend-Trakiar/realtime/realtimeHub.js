@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_change_me';
 const ACTIVE_ROUTE_TTL_MS = 90 * 1000;
 
 const managerSocketsByLine = new Map();
+const passengerSocketsByRoute = new Map();
 const activeRoutesByLine = new Map();
 
 const toIso = (value) => {
@@ -31,6 +32,25 @@ const getActiveRoutesMap = (lineId) => {
   }
 
   return activeRoutesByLine.get(lineId);
+};
+
+const getRoutePassengersSet = (routeId) => {
+  if (!passengerSocketsByRoute.has(routeId)) {
+    passengerSocketsByRoute.set(routeId, new Set());
+  }
+
+  return passengerSocketsByRoute.get(routeId);
+};
+
+const findActiveRouteById = (routeId) => {
+  for (const routesMap of activeRoutesByLine.values()) {
+    const route = routesMap.get(routeId);
+    if (route) {
+      return { ...route };
+    }
+  }
+
+  return null;
 };
 
 const buildSnapshot = (lineId) => {
@@ -63,6 +83,14 @@ const broadcastToLineManagers = (lineId, payload) => {
   const managerSockets = getLineManagersSet(lineId);
 
   managerSockets.forEach((socket) => {
+    sendJson(socket, payload);
+  });
+};
+
+const broadcastToRoutePassengers = (routeId, payload) => {
+  const passengerSockets = getRoutePassengersSet(routeId);
+
+  passengerSockets.forEach((socket) => {
     sendJson(socket, payload);
   });
 };
@@ -111,6 +139,11 @@ const registerActiveRouteUpdate = ({
   routesMap.set(routeId, next);
 
   broadcastToLineManagers(lineId, {
+    type: 'driver_location',
+    data: next,
+  });
+
+  broadcastToRoutePassengers(routeId, {
     type: 'driver_location',
     data: next,
   });
@@ -217,6 +250,23 @@ const attachRealtimeHub = (server) => {
         sendJson(socket, { type: 'connected', role: 'gerente' });
       } else if (user.rol === 'chofer') {
         sendJson(socket, { type: 'connected', role: 'chofer' });
+      } else if (user.rol === 'pasajero' || user.rol === 'usuario') {
+        const routeId = Number(requestUrl.searchParams.get('idRuta'));
+        if (!Number.isFinite(routeId)) {
+          sendJson(socket, { type: 'error', message: 'Falta idRuta para conexión de pasajero.' });
+          socket.close(1008, 'idRuta requerido');
+          return;
+        }
+
+        socket.idRuta = routeId;
+        getRoutePassengersSet(routeId).add(socket);
+
+        const activeRoute = findActiveRouteById(routeId);
+        if (activeRoute) {
+          sendJson(socket, { type: 'driver_location', data: activeRoute });
+        }
+
+        sendJson(socket, { type: 'connected', role: 'pasajero' });
       } else {
         sendJson(socket, { type: 'error', message: 'Rol no autorizado para WebSocket.' });
         socket.close(1008, 'Rol no permitido');
@@ -239,6 +289,10 @@ const attachRealtimeHub = (server) => {
       socket.on('close', () => {
         if (socket.user?.rol === 'gerente' && socket.idLinea) {
           getLineManagersSet(socket.idLinea).delete(socket);
+        }
+
+        if ((socket.user?.rol === 'pasajero' || socket.user?.rol === 'usuario') && socket.idRuta) {
+          getRoutePassengersSet(socket.idRuta).delete(socket);
         }
       });
     } catch (error) {

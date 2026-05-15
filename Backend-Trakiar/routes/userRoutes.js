@@ -3,6 +3,7 @@ const { registerUser } = require('../controllers/userController');
 const { loginUser } = require('../controllers/authController');
 const {
   promoteToDriver,
+  demoteDriverToUser,
   getDriverProfile,
   getDriverRoutes,
   registerDriverLocation,
@@ -14,7 +15,9 @@ const {
   assignUnitToDriver,
   updateUnitDriver,
   deleteUnit,
+  updateUnitStatus,
 } = require('../controllers/unitController');
+const { getManagerStats } = require('../controllers/managerStatsController');
 const {
   addRoute,
   listRoutesByLine,
@@ -46,6 +49,14 @@ router.post('/promote-to-driver', verifyToken, (req, res, next) => {
   }
   next();
 }, promoteToDriver);
+
+// Ruta para degradar chofer a usuario
+router.post('/demote-driver', verifyToken, (req, res, next) => {
+  if (req.user.rol !== 'gerente') {
+    return res.status(403).json({ error: 'Acceso denegado. Solo los gerentes pueden realizar esta acción.' });
+  }
+  next();
+}, demoteDriverToUser);
 
 // Ruta para obtener perfil de chofer autenticado
 router.get('/driver-profile', verifyToken, (req, res, next) => {
@@ -111,6 +122,14 @@ router.put('/update-unit-driver', verifyToken, (req, res, next) => {
   next();
 }, updateUnitDriver);
 
+// Ruta para actualizar estado de una unidad
+router.put('/update-unit-status', verifyToken, (req, res, next) => {
+  if (req.user.rol !== 'gerente') {
+    return res.status(403).json({ error: 'Acceso denegado. Solo los gerentes pueden realizar esta acción.' });
+  }
+  next();
+}, updateUnitStatus);
+
 // Ruta para eliminar una unidad
 router.delete('/delete-unit/:idUnidad', verifyToken, (req, res, next) => {
   if (req.user.rol !== 'gerente') {
@@ -159,5 +178,13 @@ router.delete('/delete-route/:idRuta', verifyToken, (req, res, next) => {
   }
   next();
 }, deleteRoute);
+
+// Ruta para estadisticas de gerente
+router.get('/manager-stats', verifyToken, (req, res, next) => {
+  if (req.user.rol !== 'gerente') {
+    return res.status(403).json({ error: 'Acceso denegado. Solo los gerentes pueden realizar esta acción.' });
+  }
+  next();
+}, getManagerStats);
 
 module.exports = router;

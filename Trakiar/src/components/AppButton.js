@@ -9,6 +9,9 @@ export default function AppButton({
   loading = false,
   disabled = false,
   iconName,
+  iconOnly = false,
+  style,
+  labelStyle,
 }) {
   const isPrimary = variant === 'primary';
 
@@ -18,24 +21,36 @@ export default function AppButton({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
+        iconOnly && styles.iconOnly,
         isPrimary ? styles.primary : styles.secondary,
         (disabled || loading) && styles.disabled,
         pressed && !disabled && !loading && styles.pressed,
+        style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? '#fff' : colors.primary} />
+        <ActivityIndicator color={isPrimary ? colors.surface : colors.primary} />
       ) : (
         <>
           {!!iconName && (
             <MaterialCommunityIcons
               name={iconName}
               size={18}
-              color={isPrimary ? '#fff' : colors.primary}
+              color={isPrimary ? colors.surface : colors.primaryDark}
               style={styles.icon}
             />
           )}
-          <Text style={[styles.label, isPrimary ? styles.labelPrimary : styles.labelSecondary]}>{title}</Text>
+          {!iconOnly && (
+            <Text
+              style={[
+                styles.label,
+                isPrimary ? styles.labelPrimary : styles.labelSecondary,
+                labelStyle,
+              ]}
+            >
+              {title}
+            </Text>
+          )}
         </>
       )}
     </Pressable>
@@ -53,18 +68,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
+  iconOnly: {
+    paddingHorizontal: 0,
+    minWidth: 44,
+  },
   primary: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
     shadowColor: colors.primaryDark,
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    elevation: 6,
   },
   secondary: {
-    backgroundColor: '#fff',
-    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    shadowColor: colors.primaryDark,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   disabled: {
     opacity: 0.6,
@@ -77,10 +101,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   labelPrimary: {
-    color: '#fff',
+    color: colors.surface,
   },
   labelSecondary: {
-    color: colors.primary,
+    color: colors.primaryDark,
   },
   icon: {
     marginRight: 2,

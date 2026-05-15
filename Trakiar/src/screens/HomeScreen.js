@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import AnimatedEntrance from '../components/AnimatedEntrance';
@@ -83,31 +83,35 @@ export default function HomeScreen({ navigation }) {
 
         <AnimatedEntrance delay={60}>
           <AppCard>
-          <Text style={styles.sectionTitle}>¿A dónde quieres ir?</Text>
-          <View style={styles.gap10}>
-            <AppInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="¿a donde quieres ir?"
-              autoCapitalize="none"
-              returnKeyType="search"
-              onSubmitEditing={handleSearch}
-            />
-            <AppButton
-              title={loadingSearch ? 'Buscando...' : 'Buscar'}
-              iconName="magnify"
-              onPress={handleSearch}
-              loading={loadingSearch}
-            />
-          </View>
+            <View style={styles.searchRow}>
+              <View style={styles.searchInputWrap}>
+                <AppInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="¿a donde quieres ir?"
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  onSubmitEditing={handleSearch}
+                  style={styles.searchInput}
+                />
+              </View>
+              <AppButton
+                title="Buscar"
+                iconName="magnify"
+                iconOnly
+                onPress={handleSearch}
+                loading={loadingSearch}
+                style={styles.searchButton}
+              />
+            </View>
 
-          {!!searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
+            {!!searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
           </AppCard>
         </AnimatedEntrance>
 
         {searched && routes.length === 0 && !loadingSearch ? (
           <AnimatedEntrance delay={110}>
-            <AppCard variant="soft">
+            <AppCard>
               <Text style={styles.sectionTitle}>Sin coincidencias</Text>
               <Text style={styles.detail}>Prueba con otra palabra clave o el nombre de la línea.</Text>
             </AppCard>
@@ -133,6 +137,7 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 28,
     gap: 16,
+    paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
   },
   hero: {
     gap: 8,
@@ -148,8 +153,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 20,
   },
-  gap10: {
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
+  },
+  searchInputWrap: {
+    flex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 50,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+  },
+  searchButton: {
+    width: 44,
+    height: 50,
+    borderRadius: 14,
   },
   errorText: {
     marginTop: 10,

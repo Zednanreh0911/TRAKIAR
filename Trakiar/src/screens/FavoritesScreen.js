@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AnimatedEntrance from '../components/AnimatedEntrance';
 import AppCard from '../components/AppCard';
@@ -49,7 +49,7 @@ export default function FavoritesScreen({ navigation }) {
 
         {favorites.length === 0 ? (
           <AnimatedEntrance delay={60}>
-            <AppCard variant="soft">
+            <AppCard>
               <Text style={styles.sectionTitle}>Aún no tienes favoritos</Text>
               <Text style={styles.detail}>Marca rutas con el ícono de corazón desde Inicio o Rutas.</Text>
             </AppCard>
@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 28,
     gap: 14,
+    paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
   },
   listWrap: {
     gap: 12,

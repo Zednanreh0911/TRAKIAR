@@ -9,7 +9,7 @@ export default function RouteResultCard({ routeItem, onPress, isFavorite = false
     <AppCard>
       <View style={styles.titleRow}>
         <View style={styles.iconWrap}>
-          <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.primary} />
+          <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.warning} />
         </View>
         <View style={styles.titleBlock}>
           <Text style={styles.routeTitle}>{routeItem?.nombre || 'Ruta sin nombre'}</Text>
@@ -24,7 +24,7 @@ export default function RouteResultCard({ routeItem, onPress, isFavorite = false
             <MaterialCommunityIcons
               name={isFavorite ? 'heart' : 'heart-outline'}
               size={19}
-              color={isFavorite ? colors.danger : colors.primary}
+              color={isFavorite ? colors.warning : colors.textLight}
             />
           </Pressable>
         ) : null}
@@ -52,9 +52,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.warning,
   },
   titleBlock: {
     flex: 1,
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   routeMeta: {
-    color: colors.primary,
+    color: colors.warning,
     fontWeight: '700',
     fontSize: 13,
   },

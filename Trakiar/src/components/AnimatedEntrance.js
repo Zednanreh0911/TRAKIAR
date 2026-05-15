@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 export default function AnimatedEntrance({
   children,
@@ -10,8 +11,16 @@ export default function AnimatedEntrance({
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(distance)).current;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+
+    opacity.setValue(0);
+    translateY.setValue(distance);
+
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -28,7 +37,7 @@ export default function AnimatedEntrance({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [delay, distance, duration, opacity, translateY]);
+  }, [delay, distance, duration, isFocused, opacity, translateY]);
 
   return (
     <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>

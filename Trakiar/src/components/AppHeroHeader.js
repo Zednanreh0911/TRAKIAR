@@ -5,11 +5,8 @@ import { colors } from '../theme/colors';
 export default function AppHeroHeader({ title, subtitle, iconName = 'map-marker-radius-outline' }) {
   return (
     <View style={styles.wrap}>
-      <View style={styles.badge}>
-        <MaterialCommunityIcons name={iconName} size={17} color={colors.primary} />
-        <Text style={styles.badgeText}>Trakiar</Text>
-      </View>
       <Text style={styles.title}>{title}</Text>
+      <View style={styles.titleAccent} />
       {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>
   );
@@ -19,24 +16,11 @@ const styles = StyleSheet.create({
   wrap: {
     gap: 8,
   },
-  badge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  titleAccent: {
+    width: 44,
+    height: 3,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.primarySoft,
-  },
-  badgeText: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 12,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+    backgroundColor: colors.warning,
   },
   title: {
     color: colors.text,

@@ -1,10 +1,15 @@
 import { SafeAreaView, StyleSheet, View } from 'react-native';
 import { colors } from '../theme/colors';
 
-export default function AppScreen({ children }) {
+export default function AppScreen({
+  children,
+  backgroundColor = colors.background,
+  containerStyle,
+  safeAreaStyle,
+}) {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>{children}</View>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor }, safeAreaStyle]}>
+      <View style={[styles.container, { backgroundColor }, containerStyle]}>{children}</View>
     </SafeAreaView>
   );
 }
