@@ -41,6 +41,13 @@ const managerModules = [
     icon: 'chart-areaspline',
     route: 'ManagerStats',
   },
+  {
+    key: 'pdf-reports',
+    title: 'Reportes PDF',
+    description: 'Genera reportes en PDF con datos operativos y de rutas.',
+    icon: 'file-pdf-box',
+    route: 'PdfReports',
+  },
 ];
 
 export default function ManagerToolsScreen({ navigation }) {

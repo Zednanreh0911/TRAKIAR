@@ -11,6 +11,7 @@ import HomeScreen from '../screens/HomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import ManagerToolsScreen from '../screens/ManagerToolsScreen';
 import ManagerStatsScreen from '../screens/ManagerStatsScreen';
+import PdfReportsScreen from '../screens/PdfReportsScreen';
 import PeopleManagementScreen from '../screens/PeopleManagementScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -216,6 +217,11 @@ export default function AppNavigator() {
                 name="ManagerStats"
                 component={ManagerStatsScreen}
                 options={{ title: 'Estadísticas operativas', headerShown: false }}
+              />
+              <Stack.Screen
+                name="PdfReports"
+                component={PdfReportsScreen}
+                options={{ title: 'Reportes PDF', headerShown: false }}
               />
             </>
           ) : null}
