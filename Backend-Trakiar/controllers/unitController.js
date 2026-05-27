@@ -83,7 +83,8 @@ const listUnitsByLine = async (req, res) => {
           un.id_chofer,
           un.estado,
           un.created_at,
-          un.modified_at,
+        un.modified_at,
+        un.modified_by,
           usr.nombre AS chofer_nombre,
           usr.correo AS chofer_correo
        FROM unidad un
@@ -137,7 +138,7 @@ const assignUnitToDriver = async (req, res) => {
     }
 
     // Asignar la unidad al chofer
-    await pool.query('UPDATE unidad SET id_chofer = $1 WHERE id = $2', [idChofer, idUnidad]);
+    await pool.query('UPDATE unidad SET id_chofer = $1, modified_by = $2 WHERE id = $3', [idChofer, req.user.id, idUnidad]);
 
     res.status(200).json({ message: 'Unidad asignada al chofer exitosamente' });
   } catch (error) {
@@ -173,7 +174,7 @@ const updateUnitDriver = async (req, res) => {
       return res.status(400).json({ error: 'El chofer ya tiene una unidad asignada' });
     }
 
-    await pool.query('UPDATE unidad SET id_chofer = $1 WHERE id = $2', [chofer.id, idUnidad]);
+    await pool.query('UPDATE unidad SET id_chofer = $1, modified_by = $2 WHERE id = $3', [chofer.id, req.user.id, idUnidad]);
 
     return res.status(200).json({ message: 'Chofer de la unidad actualizado exitosamente' });
   } catch (error) {
@@ -221,7 +222,7 @@ const updateUnitStatus = async (req, res) => {
       return res.status(404).json({ error: 'Unidad no encontrada o no pertenece a tu línea' });
     }
 
-    await pool.query('UPDATE unidad SET estado = $1 WHERE id = $2', [estado, idUnidad]);
+    await pool.query('UPDATE unidad SET estado = $1, modified_by = $2 WHERE id = $3', [estado, req.user.id, idUnidad]);
     return res.status(200).json({ message: 'Estado de la unidad actualizado exitosamente' });
   } catch (error) {
     if (error.code === '22P02') {

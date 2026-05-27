@@ -3,11 +3,16 @@ const pool = require('../db');
 
 // Controlador para registrar usuarios
 const registerUser = async (req, res) => {
-  const { nombre, correo, password } = req.body;
+  const { nombre, correo, password, tipoLinea = 'natural' } = req.body;
 
   // Validar que los campos requeridos estén presentes
   if (!nombre || !correo || !password) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+  }
+
+  const tipoLineaNormalizado = String(tipoLinea).toLowerCase();
+  if (!['natural', 'estudiantes'].includes(tipoLineaNormalizado)) {
+    return res.status(400).json({ error: 'El tipo de pasajero es inválido' });
   }
 
   try {
@@ -23,8 +28,8 @@ const registerUser = async (req, res) => {
 
     // Insertar el usuario en la base de datos
     const nuevoUsuario = await pool.query(
-      'INSERT INTO usuario (nombre, correo, password_hash) VALUES ($1, $2, $3) RETURNING *',
-      [nombre, correo, passwordHash]
+      'INSERT INTO usuario (nombre, correo, password_hash, tipo_linea) VALUES ($1, $2, $3, $4) RETURNING *',
+      [nombre, correo, passwordHash, tipoLineaNormalizado]
     );
 
     res.status(201).json({ message: 'Usuario registrado exitosamente', usuario: nuevoUsuario.rows[0] });

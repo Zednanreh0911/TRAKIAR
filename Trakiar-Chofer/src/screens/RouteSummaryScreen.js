@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-export default function RouteSummaryScreen({ summary, onBack }) {
+export default function RouteSummaryScreen({ summary, onBack, syncRetrying }) {
   const syncOk = summary?.syncStatus === 'completed';
 
   return (
@@ -34,8 +34,13 @@ export default function RouteSummaryScreen({ summary, onBack }) {
             size={16}
             color={syncOk ? '#0C7A43' : '#A76700'}
           />
+          {!syncOk ? <ActivityIndicator size={12} color="#A76700" /> : null}
           <Text style={[styles.syncText, syncOk ? styles.syncTextOk : styles.syncTextPending]}>
-            {syncOk ? 'Sincronización completada' : 'Sincronización pendiente'}
+            {syncOk
+              ? 'Sincronización completada'
+              : syncRetrying
+              ? 'Sincronización pendiente (reintentando)'
+              : 'Sincronización pendiente'}
           </Text>
         </View>
 

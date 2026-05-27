@@ -16,8 +16,8 @@ export const checkServer = async () => {
   return response.data;
 };
 
-export const registerUser = async ({ nombre, correo, password }) => {
-  const response = await api.post('/register', { nombre, correo, password });
+export const registerUser = async ({ nombre, correo, password, tipoLinea }) => {
+  const response = await api.post('/register', { nombre, correo, password, tipoLinea });
   return response.data;
 };
 

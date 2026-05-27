@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppButton from '../components/AppButton';
+import AppDropdown from '../components/AppDropdown';
 import AppInput from '../components/AppInput';
 import AppScreen from '../components/AppScreen';
 import { registerUser } from '../services/apiService';
@@ -12,18 +13,25 @@ export default function RegisterScreen({ navigation }) {
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [tipoLinea, setTipoLinea] = useState('natural');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const onRegister = async () => {
-    if (!nombre || !correo || !password) {
-      Alert.alert('Campos obligatorios', 'Completa nombre, correo y contraseña.');
+    if (!nombre || !correo || !password || !confirmPassword) {
+      Alert.alert('Campos obligatorios', 'Completa nombre, correo, contraseña y confirmación.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Contraseñas no coinciden', 'Revisa la contraseña y su confirmación.');
       return;
     }
 
     try {
       setLoading(true);
-      await registerUser({ nombre, correo, password });
+      await registerUser({ nombre, correo, password, tipoLinea });
       Alert.alert('Cuenta creada', 'Ahora puedes iniciar sesión con tu correo.');
       navigation.navigate('Login');
     } catch (error) {
@@ -65,10 +73,29 @@ export default function RegisterScreen({ navigation }) {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
-                placeholder="Password"
+                placeholder="Contraseña"
                 style={styles.loginInput}
                 rightIconName={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 onPressRightIcon={() => setShowPassword((prev) => !prev)}
+              />
+              <AppInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                placeholder="Confirmar Contraseña"
+                style={styles.loginInput}
+                rightIconName={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                onPressRightIcon={() => setShowPassword((prev) => !prev)}
+              />
+
+              <AppDropdown
+                label="¿Eres estudiante?"
+                value={tipoLinea}
+                onChange={setTipoLinea}
+                options={[
+                  { label: 'No', value: 'natural', leftIconName: 'account' },
+                  { label: 'Sí', value: 'estudiantes', leftIconName: 'school' },
+                ]}
               />
 
               <AppButton

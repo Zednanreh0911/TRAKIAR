@@ -3,7 +3,7 @@ const pool = require('../db');
 const EARTH_RADIUS_METERS = 6371000;
 const AUTO_ROUTE_MIN_POINTS_REQUIRED = 8;
 const AUTO_ROUTE_MAX_POINTS = 60;
-const AUTO_ROUTE_MIN_DISTANCE_METERS = 120;
+const AUTO_ROUTE_MIN_DISTANCE_METERS = 10;
 
 const parseCapturedAt = (value) => {
   if (!value) {
@@ -175,7 +175,7 @@ const demoteDriverToUser = async (req, res) => {
 
     if (chofer.rows.length > 0) {
       const idChofer = chofer.rows[0].id;
-      await pool.query('UPDATE unidad SET id_chofer = NULL WHERE id_chofer = $1', [idChofer]);
+      await pool.query('UPDATE unidad SET id_chofer = NULL, modified_by = $2 WHERE id_chofer = $1', [idChofer, req.user.id]);
       await pool.query('DELETE FROM chofer WHERE id = $1', [idChofer]);
     }
 

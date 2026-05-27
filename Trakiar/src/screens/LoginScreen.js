@@ -58,7 +58,7 @@ export default function LoginScreen({ navigation }) {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
-                placeholder="Password"
+                placeholder="Contraseña"
                 style={styles.loginInput}
                 rightIconName={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 onPressRightIcon={() => setShowPassword((prev) => !prev)}

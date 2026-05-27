@@ -12,6 +12,7 @@ function resolveUser(token, meta = {}) {
       id: payload?.id,
       rol: payload?.rol,
       nombre: payload?.nombre,
+      tipoLinea: payload?.tipoLinea,
       correo: meta?.correo,
     };
   } catch {

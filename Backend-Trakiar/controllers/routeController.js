@@ -554,7 +554,7 @@ const listRoutesByLine = async (req, res) => {
     }
 
     const rutas = await pool.query(
-      `SELECT id, id_linea, nombre, descripcion, created_at
+      `SELECT id, id_linea, nombre, descripcion, created_at, modified_at, modified_by
        FROM ruta
        WHERE id_linea = $1
        ORDER BY id DESC`,
@@ -595,9 +595,12 @@ const searchRoutes = async (req, res) => {
          r.id,
          r.id_linea,
          l.nombre AS linea_nombre,
+         l.tipo_linea AS linea_tipo,
          r.nombre,
          r.descripcion,
-         r.created_at
+         r.created_at,
+         r.modified_at,
+         r.modified_by
        FROM ruta r
        INNER JOIN linea l ON l.id = r.id_linea
        WHERE ${whereClauses.join(' AND ')}
@@ -619,19 +622,28 @@ const searchRoutes = async (req, res) => {
   }
 };
 
-const listPublicRoutesCatalog = async (_req, res) => {
+const listPublicRoutesCatalog = async (req, res) => {
   try {
+    const isPassenger = req.user?.rol === 'pasajero';
+    const passengerType = String(req.user?.tipoLinea || 'natural').toLowerCase();
+
     const result = await pool.query(
       `SELECT
          l.id AS id_linea,
          l.nombre AS linea_nombre,
+         l.tipo_linea AS linea_tipo,
          r.id AS id_ruta,
          r.nombre AS ruta_nombre,
          r.descripcion AS ruta_descripcion,
-         r.created_at AS ruta_created_at
+         r.created_at AS ruta_created_at,
+         r.modified_at AS ruta_modified_at,
+         r.modified_by AS ruta_modified_by
        FROM linea l
        LEFT JOIN ruta r ON r.id_linea = l.id
+       WHERE ($1 = FALSE) OR ($2 = 'estudiantes' OR l.tipo_linea = 'natural')
        ORDER BY l.nombre ASC, r.nombre ASC, r.id ASC`
+      ,
+      [isPassenger, passengerType]
     );
 
     const grouped = [];
@@ -644,6 +656,7 @@ const listPublicRoutesCatalog = async (_req, res) => {
         const line = {
           id_linea: lineId,
           linea_nombre: row.linea_nombre,
+          linea_tipo: row.linea_tipo,
           total_rutas: 0,
           rutas: [],
         };
@@ -656,9 +669,12 @@ const listPublicRoutesCatalog = async (_req, res) => {
           id: Number(row.id_ruta),
           id_linea: lineId,
           linea_nombre: row.linea_nombre,
+          linea_tipo: row.linea_tipo,
           nombre: row.ruta_nombre,
           descripcion: row.ruta_descripcion,
           created_at: row.ruta_created_at,
+          modified_at: row.ruta_modified_at,
+          modified_by: row.ruta_modified_by,
         });
       }
     }
@@ -1001,8 +1017,8 @@ const editRoute = async (req, res) => {
 
     // Actualizar la ruta
     const rutaActualizada = await pool.query(
-      'UPDATE ruta SET nombre = $1, descripcion = $2, created_at = now() WHERE id = $3 RETURNING *',
-      [nombre, descripcion, idRuta]
+      'UPDATE ruta SET nombre = $1, descripcion = $2, modified_by = $3 WHERE id = $4 RETURNING *',
+      [nombre, descripcion, req.user.id, idRuta]
     );
 
     res.status(200).json({ message: 'Ruta actualizada exitosamente', ruta: rutaActualizada.rows[0] });

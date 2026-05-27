@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import AppDropdown from '../components/AppDropdown';
 import { useAuth } from '../context/AuthContext';
-import { getDriverRoutes, registerDriverLocation, registerDriverLocationsBatch } from '../services/apiService';
+import { getDriverRoutes, registerDriverLocationsBatch } from '../services/apiService';
 import { createRealtimeSocket, sendDriverRealtimeLocation } from '../services/realtimeService';
 import RouteSummaryScreen from './RouteSummaryScreen';
 import { getErrorText } from '../utils/error';
@@ -51,12 +51,16 @@ export default function DriverHomeScreen() {
   const [lastCaptureText, setLastCaptureText] = useState('');
   const [routeSummary, setRouteSummary] = useState(null);
   const [finalizingRoute, setFinalizingRoute] = useState(false);
+  const [syncRetrying, setSyncRetrying] = useState(false);
   const locationIntervalRef = useRef(null);
   const activeRouteRef = useRef(null);
   const routeStartedAtRef = useRef(null);
   const captureInProgressRef = useRef(false);
   const holdPressedRef = useRef(false);
   const finalizingRouteRef = useRef(false);
+  const syncRetryInProgressRef = useRef(false);
+  const syncRetryIntervalRef = useRef(null);
+  const pendingSyncRef = useRef(null);
   const holdProgress = useRef(new Animated.Value(0)).current;
   const holdAnimRef = useRef(null);
   const realtimeSocketRef = useRef(null);
@@ -85,21 +89,107 @@ export default function DriverHomeScreen() {
     return updatedPoints.length;
   };
 
-  const markLastBufferedPointSynced = async (routeId) => {
-    const bufferKey = getRouteBufferKey(routeId);
-    const previousRaw = await AsyncStorage.getItem(bufferKey);
-    const previousPoints = previousRaw ? JSON.parse(previousRaw) : [];
+  const buildPendingPayload = (points) =>
+    points
+      .filter((point) => !point?.synced)
+      .map((point) => ({
+        latitud: point.latitud,
+        longitud: point.longitud,
+        velocidadKmh: point.velocidadKmh,
+        capturedAt: point.capturedAt,
+      }));
 
-    if (previousPoints.length === 0) {
+  const clearSyncRetryInterval = () => {
+    if (syncRetryIntervalRef.current) {
+      clearInterval(syncRetryIntervalRef.current);
+      syncRetryIntervalRef.current = null;
+    }
+  };
+
+  const attemptPendingSync = async () => {
+    if (syncRetryInProgressRef.current) {
       return;
     }
 
-    const updatedPoints = [...previousPoints];
-    const lastIndex = updatedPoints.length - 1;
-    updatedPoints[lastIndex] = { ...updatedPoints[lastIndex], synced: true };
+    const pending = pendingSyncRef.current;
+    if (!pending?.routeId || !pending?.bufferKey || !token) {
+      return;
+    }
 
-    await AsyncStorage.setItem(bufferKey, JSON.stringify(updatedPoints));
+    syncRetryInProgressRef.current = true;
+    setSyncRetrying(true);
+    setRouteSummary((prev) => (prev ? { ...prev, syncRetrying: true } : prev));
+
+    try {
+      const raw = await AsyncStorage.getItem(pending.bufferKey);
+      const points = raw ? JSON.parse(raw) : [];
+      const pendingPayload = buildPendingPayload(points);
+
+      if (pendingPayload.length === 0) {
+        await AsyncStorage.removeItem(pending.bufferKey);
+        setBufferedCount(0);
+        setRouteSummary((prev) =>
+          prev
+            ? {
+                ...prev,
+                syncStatus: 'completed',
+                syncMessage: 'No había puntos pendientes por sincronizar.',
+                syncRetrying: false,
+              }
+            : prev
+        );
+        pendingSyncRef.current = null;
+        clearSyncRetryInterval();
+        return;
+      }
+
+      await registerDriverLocationsBatch(token, {
+        idRuta: pending.routeId,
+        puntos: pendingPayload,
+      });
+
+      await AsyncStorage.removeItem(pending.bufferKey);
+      setBufferedCount(0);
+      setRouteSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              syncStatus: 'completed',
+              syncMessage: `Se enviaron ${pendingPayload.length} puntos pendientes correctamente.`,
+              syncRetrying: false,
+            }
+          : prev
+      );
+      pendingSyncRef.current = null;
+      clearSyncRetryInterval();
+    } catch (error) {
+      setRouteSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              syncStatus: 'pending',
+              syncMessage: 'No se pudo sincronizar; se reintentara automaticamente cuando haya conexion.',
+              syncRetrying: false,
+            }
+          : prev
+      );
+    } finally {
+      syncRetryInProgressRef.current = false;
+      setSyncRetrying(false);
+      setRouteSummary((prev) => (prev ? { ...prev, syncRetrying: false } : prev));
+    }
   };
+
+  const ensureSyncRetryInterval = () => {
+    if (syncRetryIntervalRef.current) {
+      return;
+    }
+
+    syncRetryIntervalRef.current = setInterval(() => {
+      attemptPendingSync();
+    }, 20000);
+  };
+
 
   const captureAndBufferLocation = async () => {
     if (captureInProgressRef.current) {
@@ -134,17 +224,7 @@ export default function DriverHomeScreen() {
         ...payload,
       });
 
-      if (token) {
-        try {
-          await registerDriverLocation(token, {
-            idRuta: routeId,
-            ...payload,
-          });
-          await markLastBufferedPointSynced(routeId);
-        } catch {
-          // Se mantiene en buffer para reintento al finalizar
-        }
-      }
+      // La sincronizacion con la base de datos se realiza al finalizar la ruta.
 
       setLiveStatus('ok');
       setLastCaptureText(new Date().toLocaleTimeString());
@@ -205,12 +285,7 @@ export default function DriverHomeScreen() {
       }
 
       if (pendingPoints.length > 0) {
-        const pendingPayload = pendingPoints.map((point) => ({
-          latitud: point.latitud,
-          longitud: point.longitud,
-          velocidadKmh: point.velocidadKmh,
-          capturedAt: point.capturedAt,
-        }));
+        const pendingPayload = buildPendingPayload(pendingPoints);
 
         setTrackText(`Finalizando ruta... enviando ${pendingPayload.length} puntos pendientes.`);
         await registerDriverLocationsBatch(token, {
@@ -244,11 +319,15 @@ export default function DriverHomeScreen() {
       const summary = getRouteSummary(points, startedAtMs, finishedAtMs);
       const currentRouteName = routes.find((route) => Number(route.id) === Number(routeId))?.nombre || `Ruta ${routeId}`;
 
+      pendingSyncRef.current = { routeId, bufferKey };
+      ensureSyncRetryInterval();
+
       setRouteSummary({
         ...summary,
         routeName: currentRouteName,
         syncStatus: 'pending',
         syncMessage: 'No se pudieron enviar al servidor; los puntos quedaron guardados para reintento.',
+        syncRetrying: false,
       });
     } finally {
       if (realtimeSocketRef.current) {
@@ -343,12 +422,22 @@ export default function DriverHomeScreen() {
         clearInterval(locationIntervalRef.current);
       }
 
+      clearSyncRetryInterval();
+
       if (realtimeSocketRef.current) {
         realtimeSocketRef.current.close();
         realtimeSocketRef.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (routeSummary?.syncStatus === 'pending' && pendingSyncRef.current) {
+      ensureSyncRetryInterval();
+    } else if (routeSummary?.syncStatus === 'completed') {
+      clearSyncRetryInterval();
+    }
+  }, [routeSummary?.syncStatus]);
 
   const startTracking = async () => {
     if (!selectedRoute) {
@@ -415,7 +504,7 @@ export default function DriverHomeScreen() {
   }, [tracking, liveStatus, lastCaptureText]);
 
   if (routeSummary) {
-    return <RouteSummaryScreen summary={routeSummary} onBack={() => setRouteSummary(null)} />;
+    return <RouteSummaryScreen summary={routeSummary} onBack={() => setRouteSummary(null)} syncRetrying={syncRetrying} />;
   }
 
   return (

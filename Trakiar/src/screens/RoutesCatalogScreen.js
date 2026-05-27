@@ -57,12 +57,22 @@ export default function RoutesCatalogScreen({ navigation }) {
 
   const normalizedQuery = query.trim().toLowerCase();
 
-  const filteredLines = useMemo(() => {
-    if (!normalizedQuery) {
+  const visibleLines = useMemo(() => {
+    const userType = String(user?.tipoLinea || 'natural').toLowerCase();
+
+    if (userType === 'estudiantes') {
       return lineas;
     }
 
-    return lineas
+    return lineas.filter((linea) => String(linea.linea_tipo || 'natural').toLowerCase() === 'natural');
+  }, [lineas, user?.tipoLinea]);
+
+  const filteredLines = useMemo(() => {
+    if (!normalizedQuery) {
+      return visibleLines;
+    }
+
+    return visibleLines
       .map((linea) => ({
         ...linea,
         rutas: (linea.rutas || []).filter((ruta) => {
@@ -71,7 +81,7 @@ export default function RoutesCatalogScreen({ navigation }) {
         }),
       }))
       .filter((linea) => linea.rutas.length > 0);
-  }, [lineas, normalizedQuery]);
+  }, [visibleLines, normalizedQuery]);
 
   const handleOpenMap = (routeItem) => {
     navigation.navigate('UserMap', {

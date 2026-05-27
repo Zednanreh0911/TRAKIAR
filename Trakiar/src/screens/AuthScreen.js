@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AppDropdown from '../components/AppDropdown';
 import { checkServer, getProtectedData, loginUser, registerUser } from '../services/apiService';
 import { clearToken, getToken, saveToken } from '../services/storageService';
 import { API_BASE_URL, SERVER_BASE_URL } from '../config/api';
@@ -19,18 +20,25 @@ export default function AuthScreen() {
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [tipoLinea, setTipoLinea] = useState('natural');
   const [loading, setLoading] = useState(false);
   const [responseText, setResponseText] = useState('Sin acciones todavía.');
 
   const onRegister = async () => {
-    if (!nombre || !correo || !password) {
-      Alert.alert('Campos requeridos', 'Completa nombre, correo y contraseña.');
+    if (!nombre || !correo || !password || !confirmPassword) {
+      Alert.alert('Campos requeridos', 'Completa nombre, correo, contraseña y confirmación.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Contraseñas no coinciden', 'Revisa la contraseña y su confirmación.');
       return;
     }
 
     try {
       setLoading(true);
-      const data = await registerUser({ nombre, correo, password });
+      const data = await registerUser({ nombre, correo, password, tipoLinea });
       setResponseText(`Registro exitoso:\n${JSON.stringify(data, null, 2)}`);
       Alert.alert('Listo', 'Usuario registrado correctamente.');
       setMode('login');
@@ -127,13 +135,24 @@ export default function AuthScreen() {
       </View>
 
       {mode === 'register' && (
-        <TextInput
-          placeholder="Nombre"
-          value={nombre}
-          onChangeText={setNombre}
-          placeholderTextColor={colors.textMuted}
-          style={styles.input}
-        />
+        <>
+          <TextInput
+            placeholder="Nombre"
+            value={nombre}
+            onChangeText={setNombre}
+            placeholderTextColor={colors.textMuted}
+            style={styles.input}
+          />
+          <AppDropdown
+            label="¿Eres estudiante?"
+            value={tipoLinea}
+            onChange={setTipoLinea}
+            options={[
+              { label: 'No', value: 'natural', leftIconName: 'account' },
+              { label: 'Sí', value: 'estudiantes', leftIconName: 'school' },
+            ]}
+          />
+        </>
       )}
 
       <TextInput
@@ -153,6 +172,16 @@ export default function AuthScreen() {
         placeholderTextColor={colors.textMuted}
         style={styles.input}
       />
+      {mode === 'register' && (
+        <TextInput
+          placeholder="Confirmar contraseña"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          placeholderTextColor={colors.textMuted}
+          style={styles.input}
+        />
+      )}
 
       <TouchableOpacity
         style={styles.button}
