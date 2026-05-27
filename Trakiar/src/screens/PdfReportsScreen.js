@@ -82,8 +82,8 @@ const buildReportHtml = ({ title, subtitle, columns, rows }) => {
           p { color: #475569; margin: 0 0 20px; line-height: 1.6; }
           .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
           .meta-item { background: #EFF6FF; color: #1D4ED8; border-radius: 999px; padding: 6px 12px; font-size: 13px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 18px; }
-          th, td { padding: 14px 16px; border: 1px solid #D9E4F8; text-align: left; }
+          table { width: 100%; border-collapse: collapse; margin-top: 18px; table-layout: fixed; }
+          th, td { padding: 10px 12px; border: 1px solid #D9E4F8; text-align: left; word-break: break-word; white-space: normal; font-size: 12px; }
           th { background: #E0E8FF; color: #0F172A; font-weight: 700; }
           tr:nth-child(even) { background: #F8FAFF; }
           .footer { margin-top: 24px; color: #64748B; font-size: 13px; }
@@ -133,6 +133,7 @@ const getDriverReportRows = (units) => {
         correo: unidad.chofer_correo,
         unidad: unidad.identificador || `Unidad #${unidad.id}`,
         estado_unidad: unidad.estado || "-",
+        modificado_por: unidad.modified_by_nombre || unidad.modified_by || "-",
       });
     }
   });
@@ -147,7 +148,7 @@ const getReportData = async (type, token) => {
       identificador: unidad.identificador || `Unidad #${unidad.id}`,
       estado: unidad.estado || "-",
       chofer: unidad.chofer_nombre || "Sin chofer",
-      correo_chofer: unidad.chofer_correo || "-",
+      modificado_por: unidad.modified_by_nombre || unidad.modified_by || "-",
       creado: unidad.created_at
         ? new Date(unidad.created_at).toLocaleDateString()
         : "-",
@@ -160,7 +161,7 @@ const getReportData = async (type, token) => {
         { key: "identificador", label: "Unidad" },
         { key: "estado", label: "Estado" },
         { key: "chofer", label: "Chofer" },
-        { key: "correo_chofer", label: "Correo chofer" },
+        { key: "modificado_por", label: "Modificado por" },
         { key: "creado", label: "Creado" },
       ],
       rows: rows.length
@@ -171,6 +172,7 @@ const getReportData = async (type, token) => {
               estado: "-",
               chofer: "-",
               correo_chofer: "-",
+              modificado_por: "-",
               creado: "-",
             },
           ],
@@ -189,6 +191,7 @@ const getReportData = async (type, token) => {
         { key: "correo", label: "Correo" },
         { key: "unidad", label: "Unidad" },
         { key: "estado_unidad", label: "Estado unidad" },
+        { key: "modificado_por", label: "Modificado por" },
       ],
       rows: rows.length
         ? rows
@@ -198,6 +201,7 @@ const getReportData = async (type, token) => {
               correo: "-",
               unidad: "-",
               estado_unidad: "-",
+              modificado_por: "-",
             },
           ],
     };
@@ -208,6 +212,7 @@ const getReportData = async (type, token) => {
     const rows = (response.rutas || []).map((ruta) => ({
       nombre: ruta.nombre || "-",
       descripcion: ruta.descripcion || "-",
+      modificado_por: ruta.modified_by_nombre || ruta.modified_by || "-",
       creado: ruta.created_at
         ? new Date(ruta.created_at).toLocaleDateString()
         : "-",
@@ -219,11 +224,19 @@ const getReportData = async (type, token) => {
       columns: [
         { key: "nombre", label: "Ruta" },
         { key: "descripcion", label: "Descripción" },
+        { key: "modificado_por", label: "Modificado por" },
         { key: "creado", label: "Creado" },
       ],
       rows: rows.length
         ? rows
-        : [{ nombre: "Sin rutas", descripcion: "-", creado: "-" }],
+        : [
+            {
+              nombre: "Sin rutas",
+              descripcion: "-",
+              modificado_por: "-",
+              creado: "-",
+            },
+          ],
     };
   }
 

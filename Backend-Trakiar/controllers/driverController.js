@@ -135,10 +135,10 @@ const promoteToDriver = async (req, res) => {
     // Actualizar el rol del usuario a chofer
     await pool.query('UPDATE usuario SET rol = $1 WHERE id = $2', ['chofer', usuarioEncontrado.id]);
 
-    // Insertar el chofer en la tabla chofer
+    // Insertar el chofer en la tabla chofer con el usuario que realizó el cambio
     const nuevoChofer = await pool.query(
-      'INSERT INTO chofer (id_usuario, cedula) VALUES ($1, $2) RETURNING *',
-      [usuarioEncontrado.id, cedula]
+      'INSERT INTO chofer (id_usuario, cedula, modified_by) VALUES ($1, $2, $3) RETURNING *',
+      [usuarioEncontrado.id, cedula, req.user.id]
     );
 
     res.status(201).json({ message: 'Usuario promovido a chofer exitosamente', chofer: nuevoChofer.rows[0] });

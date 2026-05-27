@@ -1,14 +1,14 @@
-const pool = require('../db');
+const pool = require("../db");
 
 const splitSearchTokens = (input) =>
-  String(input || '')
+  String(input || "")
     .toLowerCase()
     .split(/[\s,.;:()\-_/]+/)
     .map((token) => token.trim())
     .filter(Boolean)
     .slice(0, 8);
 
-const escapeLikeToken = (value) => value.replace(/[\\%_]/g, '\\$&');
+const escapeLikeToken = (value) => value.replace(/[\\%_]/g, "\\$&");
 
 const EARTH_RADIUS_KM = 6371;
 const MIN_OPERATIONAL_SPEED_KMH = 8;
@@ -17,24 +17,48 @@ const RECENT_LOCATION_MAX_AGE_SECONDS = 120;
 const HISTORICAL_STOP_RADIUS_KM = 0.15;
 
 const normalizeMapboxPrimaryMode = (value) => {
-  const normalized = String(value || 'directions').trim().toLowerCase();
-  return normalized === 'matching' ? 'matching' : 'directions';
+  const normalized = String(value || "directions")
+    .trim()
+    .toLowerCase();
+  return normalized === "matching" ? "matching" : "directions";
 };
 
 const getRoutingSettings = () => ({
-  provider: 'mapbox',
+  provider: "mapbox",
   timeoutMs: Math.max(1000, Number(process.env.MAPBOX_TIMEOUT_MS || 7000)),
   maxWaypoints: Math.max(2, Number(process.env.MAPBOX_MAX_WAYPOINTS || 25)),
-  minInputDistanceMeters: Math.max(20, Number(process.env.MAPBOX_MIN_INPUT_DISTANCE_METERS || 90)),
-  maxDetourRatio: Math.max(1.1, Number(process.env.MAPBOX_MAX_DETOUR_RATIO || 1.8)),
-  segmentFallbackMinPairs: Math.max(2, Number(process.env.MAPBOX_SEGMENT_FALLBACK_MIN_PAIRS || 4)),
-  segmentFallbackMaxPairs: Math.max(2, Number(process.env.MAPBOX_SEGMENT_FALLBACK_MAX_PAIRS || 8)),
-  mapboxBaseUrl: String(process.env.MAPBOX_BASE_URL || 'https://api.mapbox.com').replace(/\/$/, ''),
-  mapboxToken: String(process.env.MAPBOX_ACCESS_TOKEN || '').trim(),
-  mapboxProfile: String(process.env.MAPBOX_PROFILE || 'driving').trim(),
-  mapboxTimeoutMs: Math.max(1000, Number(process.env.MAPBOX_TIMEOUT_MS || 7000)),
-  mapboxMaxCoordinates: Math.max(2, Number(process.env.MAPBOX_MAX_COORDINATES || 100)),
-  mapboxPrimaryMode: normalizeMapboxPrimaryMode(process.env.MAPBOX_PRIMARY_MODE),
+  minInputDistanceMeters: Math.max(
+    20,
+    Number(process.env.MAPBOX_MIN_INPUT_DISTANCE_METERS || 90),
+  ),
+  maxDetourRatio: Math.max(
+    1.1,
+    Number(process.env.MAPBOX_MAX_DETOUR_RATIO || 1.8),
+  ),
+  segmentFallbackMinPairs: Math.max(
+    2,
+    Number(process.env.MAPBOX_SEGMENT_FALLBACK_MIN_PAIRS || 4),
+  ),
+  segmentFallbackMaxPairs: Math.max(
+    2,
+    Number(process.env.MAPBOX_SEGMENT_FALLBACK_MAX_PAIRS || 8),
+  ),
+  mapboxBaseUrl: String(
+    process.env.MAPBOX_BASE_URL || "https://api.mapbox.com",
+  ).replace(/\/$/, ""),
+  mapboxToken: String(process.env.MAPBOX_ACCESS_TOKEN || "").trim(),
+  mapboxProfile: String(process.env.MAPBOX_PROFILE || "driving").trim(),
+  mapboxTimeoutMs: Math.max(
+    1000,
+    Number(process.env.MAPBOX_TIMEOUT_MS || 7000),
+  ),
+  mapboxMaxCoordinates: Math.max(
+    2,
+    Number(process.env.MAPBOX_MAX_COORDINATES || 100),
+  ),
+  mapboxPrimaryMode: normalizeMapboxPrimaryMode(
+    process.env.MAPBOX_PRIMARY_MODE,
+  ),
 });
 
 const toFiniteNumber = (value) => {
@@ -55,7 +79,12 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
 };
 
 const buildEtaMinutes = (distanceKm, speedKmh) => {
-  if (!Number.isFinite(distanceKm) || distanceKm < 0 || !Number.isFinite(speedKmh) || speedKmh <= 0) {
+  if (
+    !Number.isFinite(distanceKm) ||
+    distanceKm < 0 ||
+    !Number.isFinite(speedKmh) ||
+    speedKmh <= 0
+  ) {
     return null;
   }
 
@@ -74,15 +103,21 @@ const normalizeSpeed = (speed) => {
   return Math.max(speed, MIN_OPERATIONAL_SPEED_KMH);
 };
 
-const toFallbackRouteShape = (routePoints, reason = 'fallback_points') => ({
-  source: 'fallback',
+const toFallbackRouteShape = (routePoints, reason = "fallback_points") => ({
+  source: "fallback",
   fallbackReason: reason,
   inputPoints: routePoints.length,
   totalPoints: routePoints.length,
   coordinates: routePoints,
 });
 
-const distanceMeters = (a, b) => haversineKm(Number(a.latitud), Number(a.longitud), Number(b.latitud), Number(b.longitud)) * 1000;
+const distanceMeters = (a, b) =>
+  haversineKm(
+    Number(a.latitud),
+    Number(a.longitud),
+    Number(b.latitud),
+    Number(b.longitud),
+  ) * 1000;
 
 const polylineDistanceKm = (points) => {
   if (!Array.isArray(points) || points.length < 2) {
@@ -95,7 +130,7 @@ const polylineDistanceKm = (points) => {
       Number(points[i - 1].latitud),
       Number(points[i - 1].longitud),
       Number(points[i].latitud),
-      Number(points[i].longitud)
+      Number(points[i].longitud),
     );
   }
 
@@ -108,7 +143,10 @@ const downsampleRoutePoints = (routePoints, maxPoints) => {
   }
 
   const step = (routePoints.length - 1) / (maxPoints - 1);
-  return Array.from({ length: maxPoints }, (_, index) => routePoints[Math.round(index * step)]);
+  return Array.from(
+    { length: maxPoints },
+    (_, index) => routePoints[Math.round(index * step)],
+  );
 };
 
 const simplifyRoutePointsForRouting = (routePoints, minDistanceMeters) => {
@@ -119,7 +157,10 @@ const simplifyRoutePointsForRouting = (routePoints, minDistanceMeters) => {
   const filtered = [];
 
   for (const point of routePoints) {
-    if (!Number.isFinite(Number(point?.latitud)) || !Number.isFinite(Number(point?.longitud))) {
+    if (
+      !Number.isFinite(Number(point?.latitud)) ||
+      !Number.isFinite(Number(point?.longitud))
+    ) {
       continue;
     }
 
@@ -204,10 +245,16 @@ const mergeMatchingGeometries = (matchings) => {
   const merged = [];
 
   for (const matching of matchings) {
-    const coords = parseGeometryCoordinates(matching?.geometry?.coordinates || []);
+    const coords = parseGeometryCoordinates(
+      matching?.geometry?.coordinates || [],
+    );
     for (const point of coords) {
       const last = merged[merged.length - 1];
-      if (last && last.latitud === point.latitud && last.longitud === point.longitud) {
+      if (
+        last &&
+        last.latitud === point.latitud &&
+        last.longitud === point.longitud
+      ) {
         continue;
       }
 
@@ -221,15 +268,16 @@ const mergeMatchingGeometries = (matchings) => {
 
   return merged;
 };
-const formatRoutingError = (error, prefix = 'mapbox') => {
-  if (error?.name === 'AbortError') {
+const formatRoutingError = (error, prefix = "mapbox") => {
+  if (error?.name === "AbortError") {
     return `${prefix}_timeout`;
   }
 
   return String(error?.message || `${prefix}_error`);
 };
 
-const toCoordsPath = (points) => points.map((point) => `${point.longitud},${point.latitud}`).join(';');
+const toCoordsPath = (points) =>
+  points.map((point) => `${point.longitud},${point.latitud}`).join(";");
 
 const chunkRoutePointsWithOverlap = (points, maxPerChunk) => {
   if (!Array.isArray(points) || points.length === 0) {
@@ -261,26 +309,31 @@ const chunkRoutePointsWithOverlap = (points, maxPerChunk) => {
 
 const fetchMapboxJson = async (path, settings) => {
   if (!settings.mapboxToken) {
-    throw new Error('mapbox_token_missing');
+    throw new Error("mapbox_token_missing");
   }
 
-  const separator = path.includes('?') ? '&' : '?';
+  const separator = path.includes("?") ? "&" : "?";
   const url = `${settings.mapboxBaseUrl}${path}${separator}access_token=${encodeURIComponent(settings.mapboxToken)}`;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), settings.mapboxTimeoutMs);
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    settings.mapboxTimeoutMs,
+  );
 
   try {
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       signal: controller.signal,
       headers: {
-        Accept: 'application/json',
+        Accept: "application/json",
       },
     });
 
     if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      const compactText = String(text || '').replace(/\s+/g, ' ').trim();
+      const text = await response.text().catch(() => "");
+      const compactText = String(text || "")
+        .replace(/\s+/g, " ")
+        .trim();
       const message = compactText
         ? `mapbox_http_${response.status}:${compactText.slice(0, 120)}`
         : `mapbox_http_${response.status}`;
@@ -288,8 +341,8 @@ const fetchMapboxJson = async (path, settings) => {
     }
 
     const payload = await response.json();
-    if (String(payload?.code || '').toLowerCase() !== 'ok') {
-      throw new Error(`mapbox_code_${payload?.code || 'error'}`);
+    if (String(payload?.code || "").toLowerCase() !== "ok") {
+      throw new Error(`mapbox_code_${payload?.code || "error"}`);
     }
 
     return payload;
@@ -304,7 +357,11 @@ const mergeCoordinateCollections = (collections) => {
   for (const points of collections) {
     for (const point of points || []) {
       const last = merged[merged.length - 1];
-      if (last && last.latitud === point.latitud && last.longitud === point.longitud) {
+      if (
+        last &&
+        last.latitud === point.latitud &&
+        last.longitud === point.longitud
+      ) {
         continue;
       }
 
@@ -320,7 +377,10 @@ const mergeCoordinateCollections = (collections) => {
 };
 
 const buildMapboxMatchingGeometry = async (sampledPoints, settings) => {
-  const chunks = chunkRoutePointsWithOverlap(sampledPoints, settings.mapboxMaxCoordinates);
+  const chunks = chunkRoutePointsWithOverlap(
+    sampledPoints,
+    settings.mapboxMaxCoordinates,
+  );
   const mergedCollections = [];
 
   for (const chunk of chunks) {
@@ -331,7 +391,7 @@ const buildMapboxMatchingGeometry = async (sampledPoints, settings) => {
     const coordsPath = toCoordsPath(chunk);
     const payload = await fetchMapboxJson(
       `/matching/v5/mapbox/${settings.mapboxProfile}/${coordsPath}?geometries=geojson&overview=full&steps=false&tidy=true`,
-      settings
+      settings,
     );
 
     mergedCollections.push(mergeMatchingGeometries(payload?.matchings || []));
@@ -341,7 +401,10 @@ const buildMapboxMatchingGeometry = async (sampledPoints, settings) => {
 };
 
 const buildMapboxDirectionsGeometry = async (sampledPoints, settings) => {
-  const chunks = chunkRoutePointsWithOverlap(sampledPoints, settings.mapboxMaxCoordinates);
+  const chunks = chunkRoutePointsWithOverlap(
+    sampledPoints,
+    settings.mapboxMaxCoordinates,
+  );
   const mergedCollections = [];
 
   for (const chunk of chunks) {
@@ -352,10 +415,14 @@ const buildMapboxDirectionsGeometry = async (sampledPoints, settings) => {
     const coordsPath = toCoordsPath(chunk);
     const payload = await fetchMapboxJson(
       `/directions/v5/mapbox/${settings.mapboxProfile}/${coordsPath}?geometries=geojson&overview=full&steps=false&continue_straight=true`,
-      settings
+      settings,
     );
 
-  mergedCollections.push(parseGeometryCoordinates(payload?.routes?.[0]?.geometry?.coordinates || []));
+    mergedCollections.push(
+      parseGeometryCoordinates(
+        payload?.routes?.[0]?.geometry?.coordinates || [],
+      ),
+    );
   }
 
   return mergeCoordinateCollections(mergedCollections);
@@ -375,32 +442,45 @@ const buildSegmentedMapboxGeometry = async (sampledPoints, settings) => {
 
     const payload = await fetchMapboxJson(
       `/directions/v5/mapbox/${settings.mapboxProfile}/${coordsPath}?geometries=geojson&overview=full&steps=false&continue_straight=true`,
-      settings
+      settings,
     );
 
-  mergedCollections.push(parseGeometryCoordinates(payload?.routes?.[0]?.geometry?.coordinates || []));
+    mergedCollections.push(
+      parseGeometryCoordinates(
+        payload?.routes?.[0]?.geometry?.coordinates || [],
+      ),
+    );
   }
 
   return mergeCoordinateCollections(mergedCollections);
 };
 
-const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => {
+const buildRouteShape = async (
+  routePoints,
+  settings = getRoutingSettings(),
+) => {
   if (!Array.isArray(routePoints) || routePoints.length < 2) {
     return {
-      ...toFallbackRouteShape(routePoints || [], 'insufficient_points'),
+      ...toFallbackRouteShape(routePoints || [], "insufficient_points"),
       settings,
     };
   }
 
-  const simplified = simplifyRoutePointsForRouting(routePoints, settings.minInputDistanceMeters);
+  const simplified = simplifyRoutePointsForRouting(
+    routePoints,
+    settings.minInputDistanceMeters,
+  );
   const sampled = downsampleRoutePoints(
     simplified,
-    Math.min(settings.maxWaypoints, settings.mapboxMaxCoordinates)
+    Math.min(settings.maxWaypoints, settings.mapboxMaxCoordinates),
   );
 
   if (sampled.length < 2) {
     return {
-      ...toFallbackRouteShape(routePoints, 'insufficient_points_after_simplify'),
+      ...toFallbackRouteShape(
+        routePoints,
+        "insufficient_points_after_simplify",
+      ),
       settings,
     };
   }
@@ -408,59 +488,82 @@ const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => 
   try {
     let parsedCoordinates = [];
     let routingWarning = null;
-    const runDirectionsFirst = settings.mapboxPrimaryMode === 'directions';
+    const runDirectionsFirst = settings.mapboxPrimaryMode === "directions";
 
     if (runDirectionsFirst) {
       try {
-        parsedCoordinates = await buildMapboxDirectionsGeometry(sampled, settings);
+        parsedCoordinates = await buildMapboxDirectionsGeometry(
+          sampled,
+          settings,
+        );
       } catch (error) {
-        routingWarning = `directions_${formatRoutingError(error, 'mapbox')}`;
+        routingWarning = `directions_${formatRoutingError(error, "mapbox")}`;
       }
 
       try {
         if (parsedCoordinates.length < 2) {
-          parsedCoordinates = await buildMapboxMatchingGeometry(sampled, settings);
+          parsedCoordinates = await buildMapboxMatchingGeometry(
+            sampled,
+            settings,
+          );
         }
       } catch (error) {
-        const matchFailureReason = formatRoutingError(error, 'mapbox');
-        routingWarning = [routingWarning, `matching_${matchFailureReason}`].filter(Boolean).join('|');
+        const matchFailureReason = formatRoutingError(error, "mapbox");
+        routingWarning = [routingWarning, `matching_${matchFailureReason}`]
+          .filter(Boolean)
+          .join("|");
 
         if (sampled.length - 1 >= settings.segmentFallbackMinPairs) {
           const segmentedInput = downsampleRoutePoints(
             sampled,
-            Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1)
+            Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1),
           );
-          parsedCoordinates = await buildSegmentedMapboxGeometry(segmentedInput, settings);
+          parsedCoordinates = await buildSegmentedMapboxGeometry(
+            segmentedInput,
+            settings,
+          );
         }
       }
     } else {
       try {
-        parsedCoordinates = await buildMapboxMatchingGeometry(sampled, settings);
+        parsedCoordinates = await buildMapboxMatchingGeometry(
+          sampled,
+          settings,
+        );
       } catch (error) {
-        routingWarning = `matching_${formatRoutingError(error, 'mapbox')}`;
+        routingWarning = `matching_${formatRoutingError(error, "mapbox")}`;
       }
 
       try {
         if (parsedCoordinates.length < 2) {
-          parsedCoordinates = await buildMapboxDirectionsGeometry(sampled, settings);
+          parsedCoordinates = await buildMapboxDirectionsGeometry(
+            sampled,
+            settings,
+          );
         }
       } catch (error) {
-        const routeFailureReason = formatRoutingError(error, 'mapbox');
-        routingWarning = [routingWarning, `directions_${routeFailureReason}`].filter(Boolean).join('|');
+        const routeFailureReason = formatRoutingError(error, "mapbox");
+        routingWarning = [routingWarning, `directions_${routeFailureReason}`]
+          .filter(Boolean)
+          .join("|");
 
         if (sampled.length - 1 >= settings.segmentFallbackMinPairs) {
           const segmentedInput = downsampleRoutePoints(
             sampled,
-            Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1)
+            Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1),
           );
-          parsedCoordinates = await buildSegmentedMapboxGeometry(segmentedInput, settings);
+          parsedCoordinates = await buildSegmentedMapboxGeometry(
+            segmentedInput,
+            settings,
+          );
         }
       }
     }
 
     const inputDistanceKm = polylineDistanceKm(sampled);
     const resultDistanceKm = polylineDistanceKm(parsedCoordinates);
-    const detourRatio = inputDistanceKm > 0 ? resultDistanceKm / inputDistanceKm : 1;
+    const detourRatio =
+      inputDistanceKm > 0 ? resultDistanceKm / inputDistanceKm : 1;
 
     if (
       sampled.length - 1 >= settings.segmentFallbackMinPairs &&
@@ -469,11 +572,15 @@ const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => 
     ) {
       const segmentedInput = downsampleRoutePoints(
         sampled,
-        Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1)
+        Math.min(sampled.length, settings.segmentFallbackMaxPairs + 1),
       );
-      const segmented = await buildSegmentedMapboxGeometry(segmentedInput, settings);
+      const segmented = await buildSegmentedMapboxGeometry(
+        segmentedInput,
+        settings,
+      );
       const segmentedDistanceKm = polylineDistanceKm(segmented);
-      const segmentedDetourRatio = inputDistanceKm > 0 ? segmentedDistanceKm / inputDistanceKm : 1;
+      const segmentedDetourRatio =
+        inputDistanceKm > 0 ? segmentedDistanceKm / inputDistanceKm : 1;
 
       if (segmented.length >= 2 && segmentedDetourRatio <= detourRatio) {
         parsedCoordinates = segmented;
@@ -482,13 +589,16 @@ const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => 
 
     if (parsedCoordinates.length < 2) {
       return {
-        ...toFallbackRouteShape(routePoints, routingWarning || 'mapbox_empty_geometry'),
+        ...toFallbackRouteShape(
+          routePoints,
+          routingWarning || "mapbox_empty_geometry",
+        ),
         settings,
       };
     }
 
     return {
-      source: 'mapbox',
+      source: "mapbox",
       fallbackReason: null,
       routingWarning,
       settings,
@@ -501,7 +611,7 @@ const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => 
       coordinates: parsedCoordinates,
     };
   } catch (error) {
-  const reason = formatRoutingError(error, 'mapbox');
+    const reason = formatRoutingError(error, "mapbox");
     return {
       ...toFallbackRouteShape(routePoints, reason),
       settings,
@@ -511,8 +621,8 @@ const buildRouteShape = async (routePoints, settings = getRoutingSettings()) => 
 
 const getGerenteLinea = async (idUsuario) => {
   const result = await pool.query(
-    'SELECT id_linea FROM gerente_linea WHERE id_usuario = $1 LIMIT 1',
-    [idUsuario]
+    "SELECT id_linea FROM gerente_linea WHERE id_usuario = $1 LIMIT 1",
+    [idUsuario],
   );
 
   return result.rows[0] || null;
@@ -524,25 +634,29 @@ const addRoute = async (req, res) => {
 
   // Validar que los campos requeridos estén presentes
   if (!nombre || !descripcion) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    return res.status(400).json({ error: "Todos los campos son obligatorios" });
   }
 
   try {
     const gerenteLinea = await getGerenteLinea(req.user.id);
     if (!gerenteLinea) {
-      return res.status(403).json({ error: 'No tienes una línea asignada para gestionar rutas' });
+      return res
+        .status(403)
+        .json({ error: "No tienes una línea asignada para gestionar rutas" });
     }
 
     // Insertar la nueva ruta
     const nuevaRuta = await pool.query(
-      'INSERT INTO ruta (id_linea, nombre, descripcion, created_at) VALUES ($1, $2, $3, now()) RETURNING *',
-      [gerenteLinea.id_linea, nombre, descripcion]
+      "INSERT INTO ruta (id_linea, nombre, descripcion, created_at, modified_by) VALUES ($1, $2, $3, now(), $4) RETURNING *",
+      [gerenteLinea.id_linea, nombre, descripcion, req.user.id],
     );
 
-    res.status(201).json({ message: 'Ruta creada exitosamente', ruta: nuevaRuta.rows[0] });
+    res
+      .status(201)
+      .json({ message: "Ruta creada exitosamente", ruta: nuevaRuta.rows[0] });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al crear la ruta' });
+    res.status(500).json({ error: "Error al crear la ruta" });
   }
 };
 
@@ -550,34 +664,47 @@ const listRoutesByLine = async (req, res) => {
   try {
     const gerenteLinea = await getGerenteLinea(req.user.id);
     if (!gerenteLinea) {
-      return res.status(403).json({ error: 'No tienes una línea asignada para ver rutas' });
+      return res
+        .status(403)
+        .json({ error: "No tienes una línea asignada para ver rutas" });
     }
 
     const rutas = await pool.query(
-      `SELECT id, id_linea, nombre, descripcion, created_at, modified_at, modified_by
-       FROM ruta
-       WHERE id_linea = $1
-       ORDER BY id DESC`,
-      [gerenteLinea.id_linea]
+      `SELECT
+         r.id,
+         r.id_linea,
+         r.nombre,
+         r.descripcion,
+         r.created_at,
+         r.modified_at,
+         r.modified_by,
+         modifier.nombre AS modified_by_nombre
+       FROM ruta r
+       LEFT JOIN usuario modifier ON modifier.id = r.modified_by
+       WHERE r.id_linea = $1
+       ORDER BY r.id DESC`,
+      [gerenteLinea.id_linea],
     );
 
     return res.status(200).json({
-      message: 'Rutas obtenidas exitosamente',
+      message: "Rutas obtenidas exitosamente",
       idLinea: gerenteLinea.id_linea,
       rutas: rutas.rows,
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Error al listar rutas' });
+    return res.status(500).json({ error: "Error al listar rutas" });
   }
 };
 
 const searchRoutes = async (req, res) => {
-  const queryText = String(req.query.q || '').trim();
+  const queryText = String(req.query.q || "").trim();
   const tokens = splitSearchTokens(queryText);
 
   if (tokens.length === 0) {
-    return res.status(400).json({ error: 'Debes enviar un texto de búsqueda (parámetro q).' });
+    return res
+      .status(400)
+      .json({ error: "Debes enviar un texto de búsqueda (parámetro q)." });
   }
 
   try {
@@ -585,7 +712,7 @@ const searchRoutes = async (req, res) => {
       (_, index) =>
         `(LOWER(COALESCE(r.nombre, '')) LIKE $${index + 1} ESCAPE '\\'
           OR LOWER(COALESCE(r.descripcion, '')) LIKE $${index + 1} ESCAPE '\\'
-          OR LOWER(COALESCE(l.nombre, '')) LIKE $${index + 1} ESCAPE '\\')`
+          OR LOWER(COALESCE(l.nombre, '')) LIKE $${index + 1} ESCAPE '\\')`,
     );
 
     const params = tokens.map((token) => `%${escapeLikeToken(token)}%`);
@@ -603,14 +730,14 @@ const searchRoutes = async (req, res) => {
          r.modified_by
        FROM ruta r
        INNER JOIN linea l ON l.id = r.id_linea
-       WHERE ${whereClauses.join(' AND ')}
+       WHERE ${whereClauses.join(" AND ")}
        ORDER BY r.id DESC
        LIMIT 50`,
-      params
+      params,
     );
 
     return res.status(200).json({
-      message: 'Búsqueda de rutas completada',
+      message: "Búsqueda de rutas completada",
       query: queryText,
       tokens,
       total: rutas.rows.length,
@@ -618,14 +745,16 @@ const searchRoutes = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Error al buscar rutas' });
+    return res.status(500).json({ error: "Error al buscar rutas" });
   }
 };
 
 const listPublicRoutesCatalog = async (req, res) => {
   try {
-    const isPassenger = req.user?.rol === 'pasajero';
-    const passengerType = String(req.user?.tipoLinea || 'natural').toLowerCase();
+    const isPassenger = req.user?.rol === "pasajero";
+    const passengerType = String(
+      req.user?.tipoLinea || "natural",
+    ).toLowerCase();
 
     const result = await pool.query(
       `SELECT
@@ -641,9 +770,8 @@ const listPublicRoutesCatalog = async (req, res) => {
        FROM linea l
        LEFT JOIN ruta r ON r.id_linea = l.id
        WHERE ($1 = FALSE) OR ($2 = 'estudiantes' OR l.tipo_linea = 'natural')
-       ORDER BY l.nombre ASC, r.nombre ASC, r.id ASC`
-      ,
-      [isPassenger, passengerType]
+       ORDER BY l.nombre ASC, r.nombre ASC, r.id ASC`,
+      [isPassenger, passengerType],
     );
 
     const grouped = [];
@@ -684,14 +812,16 @@ const listPublicRoutesCatalog = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: 'Catálogo de líneas y rutas obtenido exitosamente',
+      message: "Catálogo de líneas y rutas obtenido exitosamente",
       totalLineas: grouped.length,
       totalRutas: grouped.reduce((acc, item) => acc + item.total_rutas, 0),
       lineas: grouped,
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Error al obtener el catálogo de rutas.' });
+    return res
+      .status(500)
+      .json({ error: "Error al obtener el catálogo de rutas." });
   }
 };
 
@@ -702,15 +832,19 @@ const estimateEtaToNearestStop = async (req, res) => {
   const idUnidad = req.query.idUnidad ? Number(req.query.idUnidad) : null;
 
   if (!Number.isFinite(idRuta)) {
-    return res.status(400).json({ error: 'El parámetro idRuta no es válido.' });
+    return res.status(400).json({ error: "El parámetro idRuta no es válido." });
   }
 
   if (!Number.isFinite(latitudUsuario) || !Number.isFinite(longitudUsuario)) {
-    return res.status(400).json({ error: 'Debes enviar latitud y longitud válidas del usuario.' });
+    return res
+      .status(400)
+      .json({ error: "Debes enviar latitud y longitud válidas del usuario." });
   }
 
   if (idUnidad !== null && !Number.isFinite(idUnidad)) {
-    return res.status(400).json({ error: 'El parámetro idUnidad no es válido.' });
+    return res
+      .status(400)
+      .json({ error: "El parámetro idUnidad no es válido." });
   }
 
   try {
@@ -720,11 +854,11 @@ const estimateEtaToNearestStop = async (req, res) => {
        INNER JOIN linea l ON l.id = r.id_linea
        WHERE r.id = $1
        LIMIT 1`,
-      [idRuta]
+      [idRuta],
     );
 
     if (rutaResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Ruta no encontrada.' });
+      return res.status(404).json({ error: "Ruta no encontrada." });
     }
 
     const ruta = rutaResult.rows[0];
@@ -750,11 +884,13 @@ const estimateEtaToNearestStop = async (req, res) => {
        WHERE pi.id_ruta = $3
        ORDER BY distancia_usuario_km ASC
        LIMIT 1`,
-      [latitudUsuario, longitudUsuario, idRuta]
+      [latitudUsuario, longitudUsuario, idRuta],
     );
 
     if (nearestStopResult.rows.length === 0) {
-      return res.status(404).json({ error: 'La ruta no tiene puntos de interés configurados.' });
+      return res
+        .status(404)
+        .json({ error: "La ruta no tiene puntos de interés configurados." });
     }
 
     const nearestStop = nearestStopResult.rows[0];
@@ -767,20 +903,20 @@ const estimateEtaToNearestStop = async (req, res) => {
        FROM punto_interes
        WHERE id_ruta = $1
        ORDER BY orden ASC, id ASC`,
-      [idRuta]
+      [idRuta],
     );
 
     const rawRoutePoints = routeGeometryResult.rows.map((point) => ({
-        id: point.id,
-        nombre: point.nombre,
-        orden: point.orden,
-        latitud: Number(point.latitud),
-        longitud: Number(point.longitud),
-      }));
+      id: point.id,
+      nombre: point.nombre,
+      orden: point.orden,
+      latitud: Number(point.latitud),
+      longitud: Number(point.longitud),
+    }));
 
-  const routeShape = await buildRouteShape(rawRoutePoints);
+    const routeShape = await buildRouteShape(rawRoutePoints);
 
-    console.log('[ETA routeShape]', {
+    console.log("[ETA routeShape]", {
       idRuta,
       source: routeShape?.source,
       fallbackReason: routeShape?.fallbackReason || null,
@@ -789,7 +925,7 @@ const estimateEtaToNearestStop = async (req, res) => {
       settings: routeShape?.settings || null,
     });
 
-    const unitFilterClause = idUnidad ? 'AND u.id_unidad = $2' : '';
+    const unitFilterClause = idUnidad ? "AND u.id_unidad = $2" : "";
     const recentLocationParams = idUnidad ? [idRuta, idUnidad] : [idRuta];
 
     const recentLocationResult = await pool.query(
@@ -806,21 +942,31 @@ const estimateEtaToNearestStop = async (req, res) => {
          ${unitFilterClause}
        ORDER BY u.created_at DESC
        LIMIT 1`,
-      recentLocationParams
+      recentLocationParams,
     );
 
     const recent = recentLocationResult.rows[0] || null;
 
-    if (recent && Number(recent.age_seconds) <= RECENT_LOCATION_MAX_AGE_SECONDS) {
-      const busToStopKm = haversineKm(Number(recent.latitud), Number(recent.longitud), stopLat, stopLng);
-      const speedKmh = normalizeSpeed(toFiniteNumber(recent.velocidad_kmh) || DEFAULT_FALLBACK_SPEED_KMH);
+    if (
+      recent &&
+      Number(recent.age_seconds) <= RECENT_LOCATION_MAX_AGE_SECONDS
+    ) {
+      const busToStopKm = haversineKm(
+        Number(recent.latitud),
+        Number(recent.longitud),
+        stopLat,
+        stopLng,
+      );
+      const speedKmh = normalizeSpeed(
+        toFiniteNumber(recent.velocidad_kmh) || DEFAULT_FALLBACK_SPEED_KMH,
+      );
       const etaMinutes = buildEtaMinutes(busToStopKm, speedKmh);
 
       if (etaMinutes !== null) {
         return res.status(200).json({
-          message: 'ETA estimado con ubicación en tiempo real reciente.',
-          mode: 'realtime_recent',
-          confidence: 'high',
+          message: "ETA estimado con ubicación en tiempo real reciente.",
+          mode: "realtime_recent",
+          confidence: "high",
           etaMinutos: Math.max(1, Math.round(etaMinutes)),
           etaRangoMinutos: {
             min: Math.max(1, Math.round(etaMinutes * 0.85)),
@@ -873,11 +1019,11 @@ const estimateEtaToNearestStop = async (req, res) => {
            AND u.created_at >= NOW() - INTERVAL '60 days'
            AND EXTRACT(DOW FROM u.created_at) = EXTRACT(DOW FROM NOW())
            AND EXTRACT(HOUR FROM u.created_at) = EXTRACT(HOUR FROM NOW())
-           ${idUnidad ? 'AND u.id_unidad = $3' : ''}
+           ${idUnidad ? "AND u.id_unidad = $3" : ""}
        ), filtered AS (
          SELECT *
          FROM near_events
-         WHERE distancia_stop_km <= $${idUnidad ? '4' : '3'}
+         WHERE distancia_stop_km <= $${idUnidad ? "4" : "3"}
        ), passes AS (
          SELECT created_at
          FROM (
@@ -898,7 +1044,7 @@ const estimateEtaToNearestStop = async (req, res) => {
          (SELECT AVG(gap_minutes) FROM intervals WHERE gap_minutes IS NOT NULL) AS avg_headway_minutes`,
       idUnidad
         ? [idRuta, nearestStop.id, idUnidad, HISTORICAL_STOP_RADIUS_KM]
-        : [idRuta, nearestStop.id, HISTORICAL_STOP_RADIUS_KM]
+        : [idRuta, nearestStop.id, HISTORICAL_STOP_RADIUS_KM],
     );
 
     const historicalPass = historicalPassResult.rows[0] || {};
@@ -910,9 +1056,10 @@ const estimateEtaToNearestStop = async (req, res) => {
       const expectedWait = Math.max(1, Math.round(avgHeadwayMinutes / 2));
 
       return res.status(200).json({
-        message: 'ETA estimado con histórico por día de semana y hora en el punto cercano.',
-        mode: 'historical_day_hour',
-        confidence: 'medium',
+        message:
+          "ETA estimado con histórico por día de semana y hora en el punto cercano.",
+        mode: "historical_day_hour",
+        confidence: "medium",
         etaMinutos: expectedWait,
         etaRangoMinutos: {
           min: Math.max(1, Math.round(avgHeadwayMinutes * 0.3)),
@@ -939,15 +1086,23 @@ const estimateEtaToNearestStop = async (req, res) => {
     }
 
     if (recent) {
-      const busToStopKm = haversineKm(Number(recent.latitud), Number(recent.longitud), stopLat, stopLng);
-      const speedKmh = normalizeSpeed(toFiniteNumber(recent.velocidad_kmh) || DEFAULT_FALLBACK_SPEED_KMH);
+      const busToStopKm = haversineKm(
+        Number(recent.latitud),
+        Number(recent.longitud),
+        stopLat,
+        stopLng,
+      );
+      const speedKmh = normalizeSpeed(
+        toFiniteNumber(recent.velocidad_kmh) || DEFAULT_FALLBACK_SPEED_KMH,
+      );
       const etaMinutes = buildEtaMinutes(busToStopKm, speedKmh);
 
       if (etaMinutes !== null) {
         return res.status(200).json({
-          message: 'ETA estimado con última velocidad conocida por falta de datos recientes/históricos suficientes.',
-          mode: 'last_known_speed',
-          confidence: 'low',
+          message:
+            "ETA estimado con última velocidad conocida por falta de datos recientes/históricos suficientes.",
+          mode: "last_known_speed",
+          confidence: "low",
           etaMinutos: Math.max(1, Math.round(etaMinutes)),
           etaRangoMinutos: {
             min: Math.max(1, Math.round(etaMinutes * 0.7)),
@@ -960,7 +1115,7 @@ const estimateEtaToNearestStop = async (req, res) => {
             idUnidad: recent.id_unidad,
             ageSeconds: Number(recent.age_seconds),
             speedKmhUsed: speedKmh,
-            reason: 'insufficient_historical_samples_or_stale_signal',
+            reason: "insufficient_historical_samples_or_stale_signal",
           },
           routeShape,
           nearestStop: {
@@ -982,15 +1137,15 @@ const estimateEtaToNearestStop = async (req, res) => {
     }
 
     return res.status(404).json({
-      error: 'No hay datos suficientes para estimar ETA en este momento.',
+      error: "No hay datos suficientes para estimar ETA en este momento.",
       details: {
-        reason: 'no_recent_location_and_insufficient_historical_data',
+        reason: "no_recent_location_and_insufficient_historical_data",
         idRuta,
       },
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Error al estimar ETA de la ruta.' });
+    return res.status(500).json({ error: "Error al estimar ETA de la ruta." });
   }
 };
 
@@ -1001,30 +1156,39 @@ const editRoute = async (req, res) => {
 
   // Validar que los campos requeridos estén presentes
   if (!nombre || !descripcion) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    return res.status(400).json({ error: "Todos los campos son obligatorios" });
   }
 
   try {
     // Verificar si la ruta existe y pertenece a una línea del gerente
     const ruta = await pool.query(
-      'SELECT * FROM ruta WHERE id = $1 AND id_linea IN (SELECT id_linea FROM gerente_linea WHERE id_usuario = $2)',
-      [idRuta, req.user.id]
+      "SELECT * FROM ruta WHERE id = $1 AND id_linea IN (SELECT id_linea FROM gerente_linea WHERE id_usuario = $2)",
+      [idRuta, req.user.id],
     );
 
     if (ruta.rows.length === 0) {
-      return res.status(404).json({ error: 'Ruta no encontrada o no tienes permiso para editarla' });
+      return res
+        .status(404)
+        .json({
+          error: "Ruta no encontrada o no tienes permiso para editarla",
+        });
     }
 
     // Actualizar la ruta
     const rutaActualizada = await pool.query(
-      'UPDATE ruta SET nombre = $1, descripcion = $2, modified_by = $3 WHERE id = $4 RETURNING *',
-      [nombre, descripcion, req.user.id, idRuta]
+      "UPDATE ruta SET nombre = $1, descripcion = $2, modified_by = $3 WHERE id = $4 RETURNING *",
+      [nombre, descripcion, req.user.id, idRuta],
     );
 
-    res.status(200).json({ message: 'Ruta actualizada exitosamente', ruta: rutaActualizada.rows[0] });
+    res
+      .status(200)
+      .json({
+        message: "Ruta actualizada exitosamente",
+        ruta: rutaActualizada.rows[0],
+      });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al actualizar la ruta' });
+    res.status(500).json({ error: "Error al actualizar la ruta" });
   }
 };
 
@@ -1035,21 +1199,25 @@ const deleteRoute = async (req, res) => {
   try {
     // Verificar si la ruta existe y pertenece a una línea del gerente
     const ruta = await pool.query(
-      'SELECT * FROM ruta WHERE id = $1 AND id_linea IN (SELECT id_linea FROM gerente_linea WHERE id_usuario = $2)',
-      [idRuta, req.user.id]
+      "SELECT * FROM ruta WHERE id = $1 AND id_linea IN (SELECT id_linea FROM gerente_linea WHERE id_usuario = $2)",
+      [idRuta, req.user.id],
     );
 
     if (ruta.rows.length === 0) {
-      return res.status(404).json({ error: 'Ruta no encontrada o no tienes permiso para eliminarla' });
+      return res
+        .status(404)
+        .json({
+          error: "Ruta no encontrada o no tienes permiso para eliminarla",
+        });
     }
 
     // Eliminar la ruta
-    await pool.query('DELETE FROM ruta WHERE id = $1', [idRuta]);
+    await pool.query("DELETE FROM ruta WHERE id = $1", [idRuta]);
 
-    res.status(200).json({ message: 'Ruta eliminada exitosamente' });
+    res.status(200).json({ message: "Ruta eliminada exitosamente" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al eliminar la ruta' });
+    res.status(500).json({ error: "Error al eliminar la ruta" });
   }
 };
 
