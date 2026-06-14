@@ -1,19 +1,39 @@
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
 import AppScreen from '../components/AppScreen';
 import { useAuth } from '../context/AuthContext';
 import { getErrorText } from '../utils/error';
 import { colors } from '../theme/colors';
+import {
+  GOOGLE_ANDROID_CLIENT_ID,
+  GOOGLE_IOS_CLIENT_ID,
+  GOOGLE_PROXY_PROJECT_NAME,
+  GOOGLE_PROXY_REDIRECT_URI,
+  GOOGLE_WEB_CLIENT_ID,
+} from '../config/auth';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const canUseGoogleProxy = Boolean(GOOGLE_PROXY_PROJECT_NAME?.trim());
+
+  const [googleRequest, , promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    expoClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri: GOOGLE_PROXY_REDIRECT_URI || undefined,
+  });
 
   const onLogin = async () => {
     if (!correo || !password) {
@@ -71,12 +91,56 @@ export default function LoginScreen({ navigation }) {
                 style={styles.primaryButton}
               />
               <AppButton
+                title="Iniciar con Google"
+                variant="secondary"
+                onPress={() => {
+                  if (!canUseGoogleProxy) {
+                    Alert.alert(
+                      'Google login',
+                      'Para usar Google en Expo Go necesitas un proyecto de Expo con nombre @owner/slug. Sin eso, usa un development build o crea una cuenta gratuita de Expo.'
+                    );
+                    return;
+                  }
+
+                  (async () => {
+                    try {
+                      setLoading(true);
+                      const result = await promptGoogleAsync({
+                        projectNameForProxy: GOOGLE_PROXY_PROJECT_NAME,
+                      });
+
+                      if (result?.type !== 'success') {
+                        Alert.alert('Google', 'No se pudo completar el inicio con Google.');
+                        return;
+                      }
+
+                      const idToken = result?.params?.id_token || result?.authentication?.idToken;
+                      if (!idToken) {
+                        Alert.alert('Google', 'No se recibió el token de Google.');
+                        return;
+                      }
+
+                      await signInWithGoogle({ id_token: idToken, correo });
+                      Alert.alert('Sesión iniciada', 'Bienvenido con Google.');
+                    } catch (error) {
+                      Alert.alert('No se pudo iniciar con Google', getErrorText(error));
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+                disabled={!googleRequest || !canUseGoogleProxy}
+                style={styles.secondaryButton}
+                labelStyle={styles.secondaryLabel}
+              />
+              <AppButton
                 title="Registrarse"
                 variant="secondary"
                 onPress={() => navigation.navigate('Register')}
                 style={styles.secondaryButton}
                 labelStyle={styles.secondaryLabel}
               />
+              <Text style={styles.forgot} onPress={() => navigation.navigate('PasswordResetRequest')}>¿Olvidaste tu contraseña?</Text>
             </View>
           </View>
         </View>
@@ -146,5 +210,11 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: {
     color: colors.text,
+  },
+  forgot: {
+    color: colors.primary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '600',
   },
 });

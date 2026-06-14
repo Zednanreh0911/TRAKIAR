@@ -9,9 +9,12 @@ import { colors } from '../theme/colors';
 
 export default function ProfileScreen({ navigation }) {
   const { user, signOut } = useAuth();
+
   const isManager = user?.rol === 'gerente';
   const roleLabel = user?.rol || 'usuario';
   const correo = user?.correo || 'Sin correo';
+  const tipoLinea = user?.tipoLinea || 'natural';
+  const tipoLineaLabel = tipoLinea === 'estudiantes' ? 'Estudiante' : 'Natural';
 
   const formatRole = (value) => {
     const normalized = String(value || '').trim();
@@ -63,10 +66,13 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.infoPill}>
               <Text style={styles.infoPillText}>{correo}</Text>
             </View>
+            <View style={styles.infoPillAlt}>
+              <Text style={styles.infoPillTextAlt}>Estatus actual: {tipoLineaLabel}</Text>
+            </View>
           </AppCard>
         </AnimatedEntrance>
 
-        <AnimatedEntrance delay={110}>
+        <AnimatedEntrance delay={100}>
           <AppCard style={styles.menuCard}>
             {isManager ? (
               <MenuRow
@@ -76,11 +82,16 @@ export default function ProfileScreen({ navigation }) {
               />
             ) : null}
             <MenuRow
-              title="Cerrar sesión"
-              icon="logout"
-              onPress={signOut}
-              tone="danger"
+              title="Cambiar contraseña"
+              icon="lock-reset"
+              onPress={() => navigation.navigate('ChangePassword')}
             />
+            <MenuRow
+              title="Cambiar estatus"
+              icon="account-switch"
+              onPress={() => navigation.navigate('ChangeStatus')}
+            />
+            <MenuRow title="Cerrar sesión" icon="logout" onPress={signOut} tone="danger" />
           </AppCard>
         </AnimatedEntrance>
       </View>
@@ -112,8 +123,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 8,
   },
+  infoPillAlt: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EC83051A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 8,
+  },
   infoPillText: {
     color: colors.primaryDark,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  infoPillTextAlt: {
+    color: colors.warning,
     fontWeight: '700',
     fontSize: 13,
   },

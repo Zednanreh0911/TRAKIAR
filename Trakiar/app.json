@@ -2,6 +2,7 @@
   "expo": {
     "name": "Trakiar",
     "slug": "trakiar",
+    "owner": "andromeda0911",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -13,6 +14,14 @@
     },
     "web": {
       "bundler": "metro"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1236b930-8de2-49c4-95b8-6a6a74613596"
+      }
     }
   }
 }

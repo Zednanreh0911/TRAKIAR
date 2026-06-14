@@ -26,6 +26,36 @@ export const loginUser = async ({ correo, password }) => {
   return response.data;
 };
 
+export const googleLogin = async ({ id_token }) => {
+  const response = await api.post('/google-login', { id_token });
+  return response.data;
+};
+
+export const updateMyProfile = async (token, payload) => {
+  const response = await api.put('/me/profile', payload, authHeaders(token));
+  return response.data;
+};
+
+export const changeMyPassword = async (token, payload) => {
+  const response = await api.put('/me/password', payload, authHeaders(token));
+  return response.data;
+};
+
+export const toggleMyStatus = async (token) => {
+  const response = await api.put('/me/status/toggle', {}, authHeaders(token));
+  return response.data;
+};
+
+export const requestPasswordReset = async ({ correo }) => {
+  const response = await api.post('/password-reset/request', { correo });
+  return response.data;
+};
+
+export const confirmPasswordReset = async ({ correo, codigo, nuevaPassword }) => {
+  const response = await api.post('/password-reset/confirm', { correo, codigo, nuevaPassword });
+  return response.data;
+};
+
 export const getProtectedData = async (token) => {
   const response = await api.get('/protected', {
     headers: {

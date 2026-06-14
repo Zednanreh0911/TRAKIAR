@@ -15,11 +15,16 @@ import PdfReportsScreen from '../screens/PdfReportsScreen';
 import PeopleManagementScreen from '../screens/PeopleManagementScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import PasswordResetRequestScreen from '../screens/PasswordResetRequestScreen';
+import PasswordResetConfirmScreen from '../screens/PasswordResetConfirmScreen';
+import CompleteProfileScreen from '../screens/CompleteProfileScreen';
 import RouteSearchScreen from '../screens/RouteSearchScreen';
 import RoutesCatalogScreen from '../screens/RoutesCatalogScreen';
 import RoutesManagementScreen from '../screens/RoutesManagementScreen';
 import UnitsManagementScreen from '../screens/UnitsManagementScreen';
 import ActiveRoutesLiveScreen from '../screens/ActiveRoutesLiveScreen';
+import ChangePasswordScreen from '../screens/ChangePasswordScreen';
+import ChangeStatusScreen from '../screens/ChangeStatusScreen';
 import UserMapScreen from '../screens/UserMapScreen';
 import { colors } from '../theme/colors';
 
@@ -169,6 +174,7 @@ function MainTabs() {
 export default function AppNavigator() {
   const { token, user, loadingSession } = useAuth();
   const isManager = user?.rol === 'gerente';
+  const needsProfileCompletion = Boolean(token && !user?.tipoLinea);
 
   if (loadingSession) {
     return <SplashScreen />;
@@ -180,12 +186,20 @@ export default function AppNavigator() {
         <Stack.Navigator screenOptions={screenOptions}>
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="PasswordResetRequest" component={PasswordResetRequestScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="PasswordResetConfirm" component={PasswordResetConfirmScreen} options={{ headerShown: false }} />
+        </Stack.Navigator>
+      ) : needsProfileCompletion ? (
+        <Stack.Navigator screenOptions={screenOptions}>
+          <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       ) : (
         <Stack.Navigator screenOptions={screenOptions}>
           <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="UserMap" component={UserMapScreen} options={{ title: 'Mapa en vivo' }} />
           <Stack.Screen name="RouteSearch" component={RouteSearchScreen} options={{ title: 'Buscar rutas' }} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
+          <Stack.Screen name="ChangeStatus" component={ChangeStatusScreen} options={{ title: 'Cambiar estatus' }} />
           {isManager ? (
             <>
               <Stack.Screen

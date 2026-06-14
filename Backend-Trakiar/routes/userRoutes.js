@@ -1,6 +1,16 @@
 const express = require('express');
-const { registerUser } = require('../controllers/userController');
+const {
+  registerUser,
+  updateMyProfile,
+  changeMyPassword,
+  toggleMyStatus,
+} = require('../controllers/userController');
 const { loginUser } = require('../controllers/authController');
+const { googleLogin } = require('../controllers/googleAuthController');
+const {
+  requestPasswordReset,
+  confirmPasswordReset,
+} = require('../controllers/passwordResetController');
 const {
   promoteToDriver,
   demoteDriverToUser,
@@ -36,6 +46,24 @@ router.post('/register', registerUser);
 
 // Ruta para iniciar sesión
 router.post('/login', loginUser);
+
+// Ruta para login con Google
+router.post('/google-login', googleLogin);
+
+// Ruta para completar perfil (tipo de pasajero)
+router.put('/me/profile', verifyToken, updateMyProfile);
+
+// Ruta para cambiar contraseña
+router.put('/me/password', verifyToken, changeMyPassword);
+
+// Ruta para alternar entre natural y estudiantes
+router.put('/me/status/toggle', verifyToken, toggleMyStatus);
+
+// Ruta para pedir código de restablecimiento
+router.post('/password-reset/request', requestPasswordReset);
+
+// Ruta para confirmar nuevo password con código
+router.post('/password-reset/confirm', confirmPasswordReset);
 
 // Ruta protegida de ejemplo
 router.get('/protected', verifyToken, (req, res) => {
