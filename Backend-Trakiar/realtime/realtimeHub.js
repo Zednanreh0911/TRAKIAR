@@ -42,15 +42,16 @@ const getRoutePassengersSet = (routeId) => {
   return passengerSocketsByRoute.get(routeId);
 };
 
-const findActiveRouteById = (routeId) => {
+const findActiveRoutesById = (routeId) => {
+  const active = [];
   for (const routesMap of activeRoutesByLine.values()) {
-    const route = routesMap.get(routeId);
-    if (route) {
-      return { ...route };
+    for (const route of routesMap.values()) {
+      if (route.idRuta === routeId) {
+        active.push({ ...route });
+      }
     }
   }
-
-  return null;
+  return active;
 };
 
 const buildSnapshot = (lineId) => {
@@ -65,10 +66,10 @@ const cleanupStaleRoutes = (lineId) => {
   const routesMap = getActiveRoutesMap(lineId);
   const now = Date.now();
 
-  for (const [routeId, routeData] of routesMap.entries()) {
+  for (const [key, routeData] of routesMap.entries()) {
     const age = now - new Date(routeData.lastUpdate).getTime();
     if (age > ACTIVE_ROUTE_TTL_MS) {
-      routesMap.delete(routeId);
+      routesMap.delete(key);
     }
   }
 };
@@ -115,7 +116,7 @@ const registerActiveRouteUpdate = ({
   cleanupStaleRoutes(lineId);
 
   const routesMap = getActiveRoutesMap(lineId);
-  const previous = routesMap.get(routeId);
+  const previous = routesMap.get(idUnidad);
   const next = {
     idLinea: lineId,
     idRuta: routeId,
@@ -136,7 +137,7 @@ const registerActiveRouteUpdate = ({
     },
   };
 
-  routesMap.set(routeId, next);
+  routesMap.set(idUnidad, next);
 
   broadcastToLineManagers(lineId, {
     type: 'driver_location',
@@ -261,10 +262,10 @@ const attachRealtimeHub = (server) => {
         socket.idRuta = routeId;
         getRoutePassengersSet(routeId).add(socket);
 
-        const activeRoute = findActiveRouteById(routeId);
-        if (activeRoute) {
+        const activeRoutes = findActiveRoutesById(routeId);
+        activeRoutes.forEach((activeRoute) => {
           sendJson(socket, { type: 'driver_location', data: activeRoute });
-        }
+        });
 
         sendJson(socket, { type: 'connected', role: 'pasajero' });
       } else {

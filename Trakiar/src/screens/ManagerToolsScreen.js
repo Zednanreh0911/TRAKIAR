@@ -49,6 +49,7 @@ const managerModules = [
     route: 'PdfReports',
   },
 ];
+import AppHeroHeader from '../components/AppHeroHeader';
 
 export default function ManagerToolsScreen({ navigation }) {
   const { user } = useAuth();
@@ -69,8 +70,11 @@ export default function ManagerToolsScreen({ navigation }) {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Gestión de operaciones</Text>
-        <Text style={styles.subheader}>Selecciona un módulo para administrar personas, unidades o rutas.</Text>
+        <AppHeroHeader
+          title="Gestión operativa"
+          subtitle="Selecciona un módulo para administrar personas, unidades o rutas."
+          onBack={() => navigation.goBack()}
+        />
 
         {managerModules.map((module) => (
           <Pressable
@@ -99,20 +103,10 @@ export default function ManagerToolsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 14,
-    paddingBottom: 28,
+    gap: 20,
+    paddingBottom: 40,
     paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
-  },
-  header: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  subheader: {
-    color: colors.textMuted,
-    lineHeight: 20,
-    marginBottom: 2,
+    paddingHorizontal: 24,
   },
   modulePressable: {
     borderRadius: 16,
@@ -124,28 +118,30 @@ const styles = StyleSheet.create({
   moduleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   iconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EAF1FF',
+    backgroundColor: colors.primarySoft,
   },
   moduleContent: {
     flex: 1,
     gap: 4,
   },
   moduleTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.primaryDark,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   moduleDescription: {
     color: colors.textMuted,
-    lineHeight: 19,
+    lineHeight: 22,
+    fontSize: 14,
   },
   deniedWrap: {
     flex: 1,

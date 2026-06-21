@@ -8,18 +8,17 @@ export default function AppCard({ children, style, variant = 'default' }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderRadius: 24,
+    padding: 24,
     shadowColor: colors.shadow,
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.04,
     shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   cardSoft: {
     backgroundColor: colors.surfaceSoft,
-    borderColor: colors.border,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 });

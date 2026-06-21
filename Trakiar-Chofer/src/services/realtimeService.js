@@ -12,30 +12,62 @@ export const createRealtimeSocket = ({ token, onOpen, onMessage, onError, onClos
     return null;
   }
 
-  const socket = new WebSocket(socketUrl);
+  let ws = null;
+  let isIntentionalClose = false;
+  let reconnectTimer = null;
 
-  socket.onopen = () => {
-    onOpen?.();
+  const connect = () => {
+    if (isIntentionalClose) return;
+    
+    ws = new WebSocket(socketUrl);
+
+    ws.onopen = () => {
+      onOpen?.();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        onMessage?.(parsed);
+      } catch {
+        // Ignorar mensajes inválidos
+      }
+    };
+
+    ws.onerror = (event) => {
+      onError?.(event);
+    };
+
+    ws.onclose = (event) => {
+      if (!isIntentionalClose) {
+        // Reconnect after 5 seconds
+        reconnectTimer = setTimeout(connect, 5000);
+      }
+      onClose?.(event);
+    };
   };
 
-  socket.onmessage = (event) => {
-    try {
-      const parsed = JSON.parse(event.data);
-      onMessage?.(parsed);
-    } catch {
-      // Ignorar mensajes inválidos
+  connect();
+
+  return {
+    get readyState() {
+      return ws ? ws.readyState : WebSocket.CLOSED;
+    },
+    send(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    },
+    close() {
+      isIntentionalClose = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      if (ws) {
+        ws.close();
+      }
     }
   };
-
-  socket.onerror = (event) => {
-    onError?.(event);
-  };
-
-  socket.onclose = (event) => {
-    onClose?.(event);
-  };
-
-  return socket;
 };
 
 export const sendDriverRealtimeLocation = (socket, payload) => {

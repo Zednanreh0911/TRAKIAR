@@ -135,47 +135,51 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 28,
-    gap: 16,
+    paddingBottom: 40,
+    gap: 24,
     paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
+    paddingHorizontal: 24,
   },
   hero: {
-    gap: 8,
-    marginTop: 6,
+    gap: 12,
+    marginTop: 12,
   },
   sectionTitle: {
-    color: colors.text,
-    fontSize: 17,
+    color: colors.primaryDark,
+    fontSize: 20,
     fontWeight: '800',
     marginBottom: 8,
+    letterSpacing: -0.3,
   },
   detail: {
     color: colors.textMuted,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 15,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   searchInputWrap: {
     flex: 1,
   },
   searchInput: {
     flex: 1,
-    height: 50,
+    height: 56,
     paddingVertical: 0,
     textAlignVertical: 'center',
   },
   searchButton: {
-    width: 44,
-    height: 50,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
   },
   errorText: {
-    marginTop: 10,
+    marginTop: 12,
     color: colors.danger,
-    lineHeight: 19,
+    lineHeight: 20,
     fontWeight: '600',
+    fontSize: 14,
   },
 });

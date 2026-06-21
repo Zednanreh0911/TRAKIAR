@@ -29,6 +29,7 @@ export default function ChangeStatusScreen({ navigation }) {
         <AppHeroHeader
           title="Cambiar estatus"
           subtitle="Alterna tu tipo de usuario entre natural y estudiante cuando lo necesites."
+          onBack={() => navigation.goBack()}
         />
 
         <AppCard style={styles.card}>

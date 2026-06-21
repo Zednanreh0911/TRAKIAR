@@ -196,10 +196,10 @@ export default function AppNavigator() {
       ) : (
         <Stack.Navigator screenOptions={screenOptions}>
           <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="UserMap" component={UserMapScreen} options={{ title: 'Mapa en vivo' }} />
+          <Stack.Screen name="UserMap" component={UserMapScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RouteSearch" component={RouteSearchScreen} options={{ title: 'Buscar rutas' }} />
-          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Cambiar contraseña' }} />
-          <Stack.Screen name="ChangeStatus" component={ChangeStatusScreen} options={{ title: 'Cambiar estatus' }} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ChangeStatus" component={ChangeStatusScreen} options={{ headerShown: false }} />
           {isManager ? (
             <>
               <Stack.Screen

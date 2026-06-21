@@ -2,6 +2,7 @@
   "expo": {
     "name": "Trakiar",
     "slug": "trakiar",
+    "scheme": "trakiar",
     "owner": "andromeda0911",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +17,8 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

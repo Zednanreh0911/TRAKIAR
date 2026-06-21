@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AppCard from '../components/AppCard';
+import AppHeroHeader from '../components/AppHeroHeader';
 import AppScreen from '../components/AppScreen';
 import InlineFeedback from '../components/InlineFeedback';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +14,7 @@ const formatPct = (value) => (Number.isFinite(value) ? `${value}%` : 'N/D');
 
 const formatSpeed = (value) => (Number.isFinite(value) ? `${value.toFixed(1)} km/h` : 'N/D');
 
-export default function ManagerStatsScreen() {
+export default function ManagerStatsScreen({ navigation }) {
   const { token, user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -73,13 +74,11 @@ export default function ManagerStatsScreen() {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <MaterialCommunityIcons name="chart-areaspline" size={28} color={colors.primary} />
-          <Text style={styles.header}>Estadisticas operativas</Text>
-        </View>
-        <Text style={styles.subheader}>
-          Indicadores clave para la gestion diaria de la linea.
-        </Text>
+        <AppHeroHeader
+          title="Estadísticas operativas"
+          subtitle="Indicadores clave para la gestión diaria de la línea."
+          onBack={() => navigation.goBack()}
+        />
 
         {lastUpdated ? (
           <Text style={styles.updatedText}>Actualizado: {lastUpdated.toLocaleTimeString()}</Text>
@@ -196,22 +195,33 @@ export default function ManagerStatsScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 12,
-    paddingBottom: 28,
+    gap: 20,
+    paddingBottom: 40,
     paddingTop: Platform.select({ ios: 10, android: 50, default: 50 }),
+    paddingHorizontal: 24,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  header: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  subheader: { color: colors.textMuted, lineHeight: 20 },
-  updatedText: { color: colors.textMuted, fontSize: 12, marginBottom: 6 },
+  updatedText: { color: colors.textMuted, fontSize: 12, marginBottom: 4 },
   loadingWrap: { paddingVertical: 16, alignItems: 'center' },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  cardTitle: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  cardIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: { color: colors.primaryDark, fontWeight: '800', fontSize: 16, letterSpacing: -0.2 },
   metricRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  metricBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  metricValue: { color: colors.text, fontWeight: '800', fontSize: 18 },
-  metricLabel: { color: colors.textMuted, fontSize: 12, textAlign: 'center' },
-  metricHint: { color: colors.textMuted, fontSize: 12, marginTop: 8 },
+  metricBlock: { flex: 1, alignItems: 'center', gap: 6 },
+  metricValue: { color: colors.primaryDark, fontWeight: '800', fontSize: 22 },
+  metricLabel: { color: colors.textMuted, fontSize: 12, textAlign: 'center', lineHeight: 16 },
+  metricHint: { color: colors.textMuted, fontSize: 13, marginTop: 10, lineHeight: 18 },
   deniedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, gap: 8 },
   deniedTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
   deniedText: { color: colors.textMuted, textAlign: 'center', lineHeight: 20 },

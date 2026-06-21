@@ -669,6 +669,25 @@ const listRoutesByLine = async (req, res) => {
         .json({ error: "No tienes una línea asignada para ver rutas" });
     }
 
+    const { fechaDesde, fechaHasta } = req.query;
+    const params = [gerenteLinea.id_linea];
+    const dateFilters = [];
+
+    if (fechaDesde) {
+      params.push(fechaDesde);
+      dateFilters.push(`r.created_at >= $${params.length}::date`);
+    }
+
+    if (fechaHasta) {
+      params.push(fechaHasta);
+      dateFilters.push(`r.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const whereClause =
+      dateFilters.length > 0
+        ? `AND ${dateFilters.join(" AND ")}`
+        : "";
+
     const rutas = await pool.query(
       `SELECT
          r.id,
@@ -681,14 +700,15 @@ const listRoutesByLine = async (req, res) => {
          modifier.nombre AS modified_by_nombre
        FROM ruta r
        LEFT JOIN usuario modifier ON modifier.id = r.modified_by
-       WHERE r.id_linea = $1
+       WHERE r.id_linea = $1 ${whereClause}
        ORDER BY r.id DESC`,
-      [gerenteLinea.id_linea],
+      params,
     );
 
     return res.status(200).json({
       message: "Rutas obtenidas exitosamente",
       idLinea: gerenteLinea.id_linea,
+      filtros: { fechaDesde: fechaDesde || null, fechaHasta: fechaHasta || null },
       rutas: rutas.rows,
     });
   } catch (error) {
@@ -929,7 +949,7 @@ const estimateEtaToNearestStop = async (req, res) => {
     const recentLocationParams = idUnidad ? [idRuta, idUnidad] : [idRuta];
 
     const recentLocationResult = await pool.query(
-      `SELECT
+      `SELECT DISTINCT ON (u.id_unidad)
          u.id_unidad,
          u.id_ruta,
          u.latitud,
@@ -939,13 +959,31 @@ const estimateEtaToNearestStop = async (req, res) => {
          EXTRACT(EPOCH FROM (NOW() - u.created_at))::int AS age_seconds
        FROM ubicacion u
        WHERE u.id_ruta = $1
+         AND u.created_at >= NOW() - INTERVAL '5 minutes'
          ${unitFilterClause}
-       ORDER BY u.created_at DESC
-       LIMIT 1`,
+       ORDER BY u.id_unidad, u.created_at DESC`,
       recentLocationParams,
     );
 
-    const recent = recentLocationResult.rows[0] || null;
+    const activeUnits = recentLocationResult.rows.filter(
+      (row) => Number(row.age_seconds) <= RECENT_LOCATION_MAX_AGE_SECONDS
+    );
+
+    let recent = null;
+    let minDistance = Infinity;
+
+    for (const unit of activeUnits) {
+      const dist = haversineKm(
+        Number(unit.latitud),
+        Number(unit.longitud),
+        stopLat,
+        stopLng
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        recent = unit;
+      }
+    }
 
     if (
       recent &&
@@ -1138,6 +1176,15 @@ const estimateEtaToNearestStop = async (req, res) => {
 
     return res.status(404).json({
       error: "No hay datos suficientes para estimar ETA en este momento.",
+      routeShape,
+      nearestStop: {
+        id: nearestStop.id,
+        nombre: nearestStop.nombre,
+        orden: nearestStop.orden,
+        latitud: stopLat,
+        longitud: stopLng,
+        distanciaUsuarioKm: Number(userToStopKm.toFixed(3)),
+      },
       details: {
         reason: "no_recent_location_and_insufficient_historical_data",
         idRuta,

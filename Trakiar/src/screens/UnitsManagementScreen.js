@@ -19,8 +19,9 @@ import {
 } from '../services/apiService';
 import { colors } from '../theme/colors';
 import { getErrorText } from '../utils/error';
+import AppHeroHeader from '../components/AppHeroHeader';
 
-export default function UnitsManagementScreen() {
+export default function UnitsManagementScreen({ navigation }) {
   const { token, user } = useAuth();
   const estadoOptions = [
     { value: 'activo', label: 'Activo' },
@@ -165,11 +166,11 @@ export default function UnitsManagementScreen() {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.headerRow}>
-          <MaterialCommunityIcons name="bus-multiple" size={28} color={colors.primary} />
-          <Text style={styles.header}>Gestión de unidades</Text>
-        </View>
-        <Text style={styles.subheader}>Administra unidades y asignaciones de tu línea.</Text>
+        <AppHeroHeader
+          title="Gestión de unidades"
+          subtitle="Administra unidades y asignaciones de tu línea."
+          onBack={() => navigation.goBack()}
+        />
 
         <AppCard>
           <AccordionSection title="Crear unidad" defaultExpanded contentStyle={styles.sectionBody}>
@@ -383,31 +384,25 @@ export default function UnitsManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 14, paddingBottom: 28, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }) },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  header: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  subheader: { color: colors.textMuted, lineHeight: 20 },
-  helperText: { color: colors.textMuted, lineHeight: 20, fontSize: 13 },
-  sectionTitle: { color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  content: { gap: 24, paddingBottom: 40, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }), paddingHorizontal: 24 },
+  helperText: { color: colors.textMuted, lineHeight: 22, fontSize: 14 },
   sectionBody: { marginTop: 10 },
-  form: { gap: 10 },
-  sectionTitle: { color: colors.text, fontWeight: '700', marginTop: 6 },
-  listTitle: { color: colors.text, fontWeight: '700', marginTop: 6 },
-  emptyListText: { color: colors.textMuted, fontSize: 13 },
+  form: { gap: 12 },
+  sectionTitle: { color: colors.primaryDark, fontWeight: '800', marginTop: 12 },
+  listTitle: { color: colors.primaryDark, fontWeight: '800', marginTop: 12 },
+  emptyListText: { color: colors.textMuted, fontSize: 14 },
   feedback: { marginTop: 4 },
-  unitsList: { gap: 8 },
+  unitsList: { gap: 10 },
   unitRow: {
     backgroundColor: colors.surfaceSoft,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 4,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 6,
   },
-  unitRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  unitRowText: { color: colors.text, fontWeight: '600' },
-  unitDriverText: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  unitRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  unitRowText: { color: colors.primaryDark, fontWeight: '700', fontSize: 15 },
+  unitDriverText: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   deniedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, gap: 8 },
   deniedTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
   deniedText: { color: colors.textMuted, textAlign: 'center', lineHeight: 20 },

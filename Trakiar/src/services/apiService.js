@@ -86,9 +86,15 @@ export const createUnit = async (token, payload) => {
   return response.data;
 };
 
-export const getUnitsByLine = async (token) => {
+export const getUnitsByLine = async (token, dateFilter = {}) => {
+  const { fechaDesde, fechaHasta } = dateFilter;
+  const params = {};
+  if (fechaDesde) params.fechaDesde = fechaDesde;
+  if (fechaHasta) params.fechaHasta = fechaHasta;
+
   const response = await api.get('/units-by-line', {
     ...authHeaders(token),
+    params,
   });
   return response.data;
 };
@@ -118,8 +124,16 @@ export const addRoute = async (token, payload) => {
   return response.data;
 };
 
-export const getRoutesByLine = async (token) => {
-  const response = await api.get('/routes-by-line', authHeaders(token));
+export const getRoutesByLine = async (token, dateFilter = {}) => {
+  const { fechaDesde, fechaHasta } = dateFilter;
+  const params = {};
+  if (fechaDesde) params.fechaDesde = fechaDesde;
+  if (fechaHasta) params.fechaHasta = fechaHasta;
+
+  const response = await api.get('/routes-by-line', {
+    ...authHeaders(token),
+    params,
+  });
   return response.data;
 };
 

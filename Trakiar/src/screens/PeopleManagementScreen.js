@@ -12,7 +12,9 @@ import { demoteDriver, promoteToDriver } from '../services/apiService';
 import { colors } from '../theme/colors';
 import { getErrorText } from '../utils/error';
 
-export default function PeopleManagementScreen() {
+import AppHeroHeader from '../components/AppHeroHeader';
+
+export default function PeopleManagementScreen({ navigation }) {
   const { token, user } = useAuth();
   const [correoUsuario, setCorreoUsuario] = useState('');
   const [cedula, setCedula] = useState('');
@@ -73,11 +75,11 @@ export default function PeopleManagementScreen() {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.headerRow}>
-          <MaterialCommunityIcons name="account-group" size={28} color={colors.primary} />
-          <Text style={styles.header}>Gestión de personas</Text>
-        </View>
-        <Text style={styles.subheader}>Administra choferes desde correo, sin depender de IDs internos.</Text>
+        <AppHeroHeader
+          title="Gestión de personas"
+          subtitle="Administra choferes desde correo, sin depender de IDs internos."
+          onBack={() => navigation.goBack()}
+        />
 
         <AppCard>
           <AccordionSection title="Promover usuario a chofer" defaultExpanded contentStyle={styles.sectionBody}>
@@ -125,13 +127,10 @@ export default function PeopleManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 14, paddingBottom: 28, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }) },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  header: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  subheader: { color: colors.textMuted, lineHeight: 20 },
-  sectionTitle: { color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  content: { gap: 24, paddingBottom: 40, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }), paddingHorizontal: 24 },
+  sectionTitle: { color: colors.primaryDark, fontWeight: '700', fontSize: 16, marginBottom: 8 },
   sectionBody: { marginTop: 10 },
-  form: { gap: 10 },
+  form: { gap: 12 },
   feedback: { marginTop: 4 },
   deniedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, gap: 8 },
   deniedTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },

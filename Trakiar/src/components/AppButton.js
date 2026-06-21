@@ -59,52 +59,46 @@ export default function AppButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 50,
-    borderRadius: 14,
+    minHeight: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderWidth: 1,
+    paddingHorizontal: 16,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   iconOnly: {
     paddingHorizontal: 0,
-    minWidth: 44,
+    minWidth: 56,
   },
   primary: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
-    shadowColor: colors.primaryDark,
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  secondary: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    shadowColor: colors.primaryDark,
-    shadowOpacity: 0.14,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  secondary: {
+    backgroundColor: colors.surfaceSoft,
   },
   disabled: {
     opacity: 0.6,
   },
   pressed: {
-    transform: [{ scale: 0.985 }],
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
   },
   label: {
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   labelPrimary: {
     color: colors.surface,
   },
   labelSecondary: {
-    color: colors.primaryDark,
+    color: colors.text,
   },
   icon: {
     marginRight: 2,

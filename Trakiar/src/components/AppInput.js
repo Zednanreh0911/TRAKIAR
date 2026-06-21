@@ -38,31 +38,31 @@ export default function AppInput({
 
 const styles = StyleSheet.create({
   wrapper: {
-    gap: 6,
+    gap: 8,
   },
   label: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
+    marginLeft: 4,
   },
   inputWrap: {
     position: 'relative',
   },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     color: colors.text,
+    fontSize: 16,
   },
   inputWithIcon: {
     paddingRight: 44,
   },
   rightIcon: {
     position: 'absolute',
-    right: 14,
+    right: 16,
     top: 0,
     bottom: 0,
     justifyContent: 'center',

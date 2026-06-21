@@ -45,6 +45,7 @@ export default function ChangePasswordScreen({ navigation }) {
         <AppHeroHeader
           title="Cambiar contraseña"
           subtitle="Tu contraseña actual se usa para confirmar la actualización de forma segura."
+          onBack={() => navigation.goBack()}
         />
 
         <AppCard style={styles.card}>

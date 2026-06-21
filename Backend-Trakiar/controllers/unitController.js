@@ -95,6 +95,25 @@ const listUnitsByLine = async (req, res) => {
         .json({ error: "No tienes una línea asignada para ver unidades" });
     }
 
+    const { fechaDesde, fechaHasta } = req.query;
+    const params = [gerenteLinea.id_linea];
+    const dateFilters = [];
+
+    if (fechaDesde) {
+      params.push(fechaDesde);
+      dateFilters.push(`un.created_at >= $${params.length}::date`);
+    }
+
+    if (fechaHasta) {
+      params.push(fechaHasta);
+      dateFilters.push(`un.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const whereClause =
+      dateFilters.length > 0
+        ? `AND ${dateFilters.join(" AND ")}`
+        : "";
+
     const unidades = await pool.query(
       `SELECT
           un.id,
@@ -112,14 +131,15 @@ const listUnitsByLine = async (req, res) => {
        LEFT JOIN chofer ch ON ch.id = un.id_chofer
        LEFT JOIN usuario usr ON usr.id = ch.id_usuario
        LEFT JOIN usuario modifier ON modifier.id = un.modified_by
-       WHERE un.id_linea = $1
+       WHERE un.id_linea = $1 ${whereClause}
        ORDER BY un.id DESC`,
-      [gerenteLinea.id_linea],
+      params,
     );
 
     res.status(200).json({
       message: "Unidades obtenidas exitosamente",
       idLinea: gerenteLinea.id_linea,
+      filtros: { fechaDesde: fechaDesde || null, fechaHasta: fechaHasta || null },
       unidades: unidades.rows,
     });
   } catch (error) {

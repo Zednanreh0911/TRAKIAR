@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AppCard from '../components/AppCard';
+import AppHeroHeader from '../components/AppHeroHeader';
 import AppScreen from '../components/AppScreen';
 import { useAuth } from '../context/AuthContext';
 import { createManagerRealtimeSocket } from '../services/realtimeService';
@@ -27,7 +28,7 @@ const formatLastUpdate = (isoDate) => {
   return date.toLocaleTimeString();
 };
 
-export default function ActiveRoutesLiveScreen() {
+export default function ActiveRoutesLiveScreen({ navigation }) {
   const { token, user } = useAuth();
   const socketRef = useRef(null);
   const [connectionText, setConnectionText] = useState('Conectando WebSocket...');
@@ -61,16 +62,16 @@ export default function ActiveRoutesLiveScreen() {
           const snapshotRoutes = payload?.data?.rutas || [];
           const nextMap = {};
           snapshotRoutes.forEach((route) => {
-            nextMap[String(route.idRuta)] = route;
+            nextMap[String(route.idUnidad)] = route;
           });
           setRoutesMap(nextMap);
           return;
         }
 
-        if (payload?.type === 'driver_location' && payload?.data?.idRuta) {
+        if (payload?.type === 'driver_location' && payload?.data?.idUnidad) {
           setRoutesMap((prev) => ({
             ...prev,
-            [String(payload.data.idRuta)]: payload.data,
+            [String(payload.data.idUnidad)]: payload.data,
           }));
         }
       },
@@ -106,8 +107,11 @@ export default function ActiveRoutesLiveScreen() {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Rutas activas en vivo</Text>
-        <Text style={styles.subheader}>Ubicaciones en tiempo real de choferes de tu línea.</Text>
+        <AppHeroHeader
+          title="Rutas activas en vivo"
+          subtitle="Ubicaciones en tiempo real de choferes de tu línea."
+          onBack={() => navigation.goBack()}
+        />
 
         <AppCard>
           <View style={styles.statusRow}>
@@ -124,13 +128,15 @@ export default function ActiveRoutesLiveScreen() {
           </AppCard>
         ) : (
           routes.map((route) => (
-            <AppCard key={String(route.idRuta)}>
+            <AppCard key={String(route.idUnidad)}>
               <View style={styles.routeHeaderRow}>
-                <View style={styles.routeHeaderLeft}>
-                  <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.primary} />
-                  <Text style={styles.routeTitle}>{route.nombreRuta || `Ruta ${route.idRuta}`}</Text>
+                <View style={styles.iconWrap}>
+                  <MaterialCommunityIcons name="map-marker-path" size={20} color={colors.primary} />
                 </View>
-                <Text style={styles.lastUpdate}>Última: {formatLastUpdate(route.lastUpdate)}</Text>
+                <View style={styles.routeHeaderLeft}>
+                  <Text style={styles.routeTitle}>{route.nombreRuta || `Ruta ${route.idRuta}`}</Text>
+                  <Text style={styles.lastUpdate}>Última: {formatLastUpdate(route.lastUpdate)}</Text>
+                </View>
               </View>
 
               <Text style={styles.detail}>Chofer: <Text style={styles.strong}>{route?.chofer?.nombre || 'N/D'}</Text></Text>
@@ -149,35 +155,26 @@ export default function ActiveRoutesLiveScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: 14,
-    paddingBottom: 28,
+    gap: 20,
+    paddingBottom: 40,
     paddingTop: Platform.select({ ios:10, android: 50, default: 50 }),
-  },
-  header: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  subheader: {
-    color: colors.textMuted,
-    lineHeight: 20,
+    paddingHorizontal: 24,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   liveDot: {
     width: 10,
     height: 10,
     borderRadius: 99,
-    backgroundColor: colors.warning,
+    backgroundColor: '#1FA971',
   },
   statusText: {
-    color: colors.text,
+    color: colors.primaryDark,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
   },
   errorText: {
     marginTop: 8,
@@ -185,33 +182,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   emptyTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.primaryDark,
+    fontSize: 17,
+    fontWeight: '800',
     marginBottom: 6,
   },
   emptyText: {
     color: colors.textMuted,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 14,
   },
   routeHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 14,
+    gap: 12,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   routeHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     flex: 1,
+    gap: 2,
   },
   routeTitle: {
-    color: colors.text,
-    fontSize: 16,
+    color: colors.primaryDark,
+    fontSize: 17,
     fontWeight: '800',
-    flexShrink: 1,
+    letterSpacing: -0.3,
   },
   lastUpdate: {
     color: colors.textMuted,
@@ -220,10 +223,11 @@ const styles = StyleSheet.create({
   },
   detail: {
     color: colors.textMuted,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontSize: 14,
   },
   strong: {
-    color: colors.text,
+    color: colors.primaryDark,
     fontWeight: '700',
   },
   deniedWrap: {

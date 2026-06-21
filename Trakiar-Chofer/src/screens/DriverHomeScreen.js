@@ -10,7 +10,7 @@ import { createRealtimeSocket, sendDriverRealtimeLocation } from '../services/re
 import RouteSummaryScreen from './RouteSummaryScreen';
 import { getErrorText } from '../utils/error';
 
-const TRACK_INTERVAL_MS = 10000;
+const TRACK_INTERVAL_MS = 5000;
 const BUFFER_STORAGE_PREFIX = '@trakiar:driver-points:';
 
 const getRouteBufferKey = (routeId) => `${BUFFER_STORAGE_PREFIX}${routeId}`;

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedEntrance from '../components/AnimatedEntrance';
-import AppButton from '../components/AppButton';
 import AppCard from '../components/AppCard';
 import { useAuth } from '../context/AuthContext';
 import { estimateRouteEta } from '../services/apiService';
@@ -13,12 +13,14 @@ import { getErrorText } from '../utils/error';
 let MapView;
 let Marker;
 let Polyline;
+let AnimatedRegionCls;
 
 if (Platform.OS !== 'web') {
   const maps = require('react-native-maps');
   MapView = maps.default;
   Marker = maps.Marker;
   Polyline = maps.Polyline;
+  AnimatedRegionCls = maps.AnimatedRegion;
 }
 
 const INITIAL_REGION = {
@@ -32,12 +34,16 @@ const LOCATION_REFRESH_MS = 25000;
 const ETA_REFRESH_MS = 20000;
 const REALTIME_STALE_MS = 45000;
 
-const formatEtaMessage = (etaPayload) => {
-  if (!etaPayload) {
-    return 'Selecciona una ruta y consulta ETA para ver estimación.';
-  }
+const getEtaIcon = (confidence) => {
+  if (confidence === 'high') return 'bus-clock';
+  if (confidence === 'medium') return 'clock-outline';
+  return 'map-clock-outline';
+};
 
-  return `Llegada aprox: ${etaPayload.etaMinutos} min (${etaPayload.confidence || 'N/A'})`;
+const getEtaColor = (confidence) => {
+  if (confidence === 'high') return '#22C55E';
+  if (confidence === 'medium') return '#F59E0B';
+  return colors.textMuted;
 };
 
 export default function UserMapScreen({ navigation, route }) {
@@ -47,6 +53,7 @@ export default function UserMapScreen({ navigation, route }) {
   const locationPollRef = useRef(null);
   const realtimeSocketRef = useRef(null);
   const etaCacheRef = useRef(new Map());
+  const animatedRegionsRef = useRef({});
 
   const [permissionStatus, setPermissionStatus] = useState('pending');
   const [userLocation, setUserLocation] = useState(null);
@@ -56,7 +63,8 @@ export default function UserMapScreen({ navigation, route }) {
   const [etaData, setEtaData] = useState(null);
   const [etaError, setEtaError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
-  const [realtimeBus, setRealtimeBus] = useState(null);
+  const [activeBuses, setActiveBuses] = useState({});
+  const [persistedRouteShape, setPersistedRouteShape] = useState(null);
 
   const isTimeoutError = useCallback(
     (error) =>
@@ -81,39 +89,35 @@ export default function UserMapScreen({ navigation, route }) {
     };
   }, [etaData]);
 
-  const realtimeCoordinate = useMemo(() => {
-    if (!realtimeBus?.latitud || !realtimeBus?.longitud) {
-      return null;
-    }
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
 
-    const lastUpdate = new Date(realtimeBus.lastUpdate || realtimeBus.capturedAt || 0).getTime();
-    if (!lastUpdate || Date.now() - lastUpdate > REALTIME_STALE_MS) {
-      return null;
-    }
+    const now = Date.now();
+    Object.values(activeBuses).forEach(bus => {
+      const lastUpdate = new Date(bus.lastUpdate || 0).getTime();
+      if (!lastUpdate || now - lastUpdate > REALTIME_STALE_MS) return;
 
-    return {
-      latitude: Number(realtimeBus.latitud),
-      longitude: Number(realtimeBus.longitud),
-    };
-  }, [realtimeBus]);
-
-  const unitCoordinate = useMemo(() => {
-    if (realtimeCoordinate) {
-      return realtimeCoordinate;
-    }
-
-    if (!etaData?.bus?.latitud || !etaData?.bus?.longitud) {
-      return null;
-    }
-
-    return {
-      latitude: Number(etaData.bus.latitud),
-      longitude: Number(etaData.bus.longitud),
-    };
-  }, [etaData, realtimeCoordinate]);
+      const id = bus.idUnidad;
+      if (!animatedRegionsRef.current[id]) {
+        animatedRegionsRef.current[id] = new AnimatedRegionCls({
+          latitude: bus.latitud,
+          longitude: bus.longitud,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+      } else {
+        animatedRegionsRef.current[id].timing({
+          latitude: bus.latitud,
+          longitude: bus.longitud,
+          duration: 5000,
+          useNativeDriver: false,
+        }).start();
+      }
+    });
+  }, [activeBuses]);
 
   const routePolylineCoordinates = useMemo(() => {
-    const points = etaData?.routeShape?.coordinates;
+    const points = (etaData?.routeShape || persistedRouteShape)?.coordinates;
     if (!Array.isArray(points) || points.length < 2) {
       return [];
     }
@@ -124,7 +128,7 @@ export default function UserMapScreen({ navigation, route }) {
         longitude: Number(point.longitud),
       }))
       .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
-  }, [etaData]);
+  }, [etaData, persistedRouteShape]);
 
   const captureUserLocation = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -197,9 +201,18 @@ export default function UserMapScreen({ navigation, route }) {
 
       etaCacheRef.current.set(routeKey, payload);
       setEtaData(payload);
+      if (payload?.routeShape?.coordinates?.length >= 2) {
+        setPersistedRouteShape(payload.routeShape);
+      }
       setLastUpdatedAt(new Date().toLocaleTimeString());
     } catch (error) {
       const cachedPayload = etaCacheRef.current.get(routeKey) || null;
+
+      // Even on error (e.g. no drivers), backend may return routeShape
+      const errorData = error?.response?.data;
+      if (errorData?.routeShape?.coordinates?.length >= 2) {
+        setPersistedRouteShape(errorData.routeShape);
+      }
 
       if (cachedPayload) {
         setEtaData(cachedPayload);
@@ -257,6 +270,7 @@ export default function UserMapScreen({ navigation, route }) {
 
     if (!selectedRoute || !userLocation) {
       setEtaData(null);
+      setPersistedRouteShape(null);
       return;
     }
 
@@ -277,7 +291,7 @@ export default function UserMapScreen({ navigation, route }) {
         realtimeSocketRef.current.close();
         realtimeSocketRef.current = null;
       }
-      setRealtimeBus(null);
+      setActiveBuses({});
       return;
     }
 
@@ -286,7 +300,7 @@ export default function UserMapScreen({ navigation, route }) {
       realtimeSocketRef.current = null;
     }
 
-    setRealtimeBus(null);
+    setActiveBuses({});
 
     realtimeSocketRef.current = createPassengerRealtimeSocket({
       token,
@@ -296,18 +310,26 @@ export default function UserMapScreen({ navigation, route }) {
       onError: () => {},
       onMessage: (payload) => {
         if (payload?.type === 'driver_location' && payload?.data) {
-          const lastUpdate = payload?.data?.lastUpdate || payload?.data?.ultimaUbicacion?.capturedAt || null;
-          const latitud = payload?.data?.ultimaUbicacion?.latitud ?? payload?.data?.latitud;
-          const longitud = payload?.data?.ultimaUbicacion?.longitud ?? payload?.data?.longitud;
-          const velocidadKmh = payload?.data?.ultimaUbicacion?.velocidadKmh ?? payload?.data?.velocidadKmh ?? null;
+          const busData = payload.data;
+          const idUnidad = busData.idUnidad;
+          const lastUpdate = busData.lastUpdate || busData.ultimaUbicacion?.capturedAt || null;
+          const latitud = busData.ultimaUbicacion?.latitud ?? busData.latitud;
+          const longitud = busData.ultimaUbicacion?.longitud ?? busData.longitud;
+          const velocidadKmh = busData.ultimaUbicacion?.velocidadKmh ?? busData.velocidadKmh ?? null;
+          const unidadIdentificador = busData.unidadIdentificador;
 
-          if (latitud != null && longitud != null) {
-            setRealtimeBus({
-              latitud: Number(latitud),
-              longitud: Number(longitud),
-              velocidadKmh,
-              lastUpdate,
-            });
+          if (latitud != null && longitud != null && idUnidad) {
+            setActiveBuses((prev) => ({
+              ...prev,
+              [idUnidad]: {
+                idUnidad,
+                unidadIdentificador,
+                latitud: Number(latitud),
+                longitud: Number(longitud),
+                velocidadKmh,
+                lastUpdate,
+              },
+            }));
           }
         }
       },
@@ -351,19 +373,34 @@ export default function UserMapScreen({ navigation, route }) {
               strokeColor={colors.primary}
               strokeWidth={5}
             />
-          ) : unitCoordinate && nearestStopCoordinate ? (
-            <Polyline
-              coordinates={[unitCoordinate, nearestStopCoordinate]}
-              strokeColor={colors.primary}
-              strokeWidth={5}
-            />
           ) : null}
 
-          {unitCoordinate ? (
+          {Object.values(activeBuses).map((bus) => {
+            const region = animatedRegionsRef.current[bus.idUnidad];
+            if (!region) return null;
+            
+            const lastUpdate = new Date(bus.lastUpdate || 0).getTime();
+            if (!lastUpdate || Date.now() - lastUpdate > REALTIME_STALE_MS) return null;
+
+            const isTarget = etaData?.metadata?.idUnidad === bus.idUnidad;
+            
+            return (
+              <Marker.Animated
+                key={String(bus.idUnidad)}
+                coordinate={region}
+                title={isTarget ? "Tu buseta (más cercana)" : "Buseta activa"}
+                description={`Unidad: ${bus.unidadIdentificador || bus.idUnidad}`}
+                pinColor={isTarget ? colors.primaryDark : colors.primary}
+                zIndex={isTarget ? 10 : 1}
+              />
+            );
+          })}
+
+          {!activeBuses[etaData?.metadata?.idUnidad] && etaData?.bus?.latitud && etaData?.bus?.longitud ? (
             <Marker
-              coordinate={unitCoordinate}
-              title="Buseta en ruta"
-              description="Ubicación estimada de la unidad"
+              coordinate={{ latitude: Number(etaData.bus.latitud), longitude: Number(etaData.bus.longitud) }}
+              title="Buseta en ruta (Estimada)"
+              description="Última ubicación conocida de tu buseta"
               pinColor={colors.primaryDark}
             />
           ) : null}
@@ -378,46 +415,99 @@ export default function UserMapScreen({ navigation, route }) {
           ) : null}
         </MapView>
 
+        <TouchableOpacity style={styles.floatingBackButton} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primaryDark} />
+        </TouchableOpacity>
+
         <AnimatedEntrance delay={80} distance={18}>
           <AppCard style={styles.overlayCard}>
-          <Text style={styles.overlayEta}>{formatEtaMessage(etaData)}</Text>
 
-          <Text style={styles.overlayRoute}>
-            {selectedRouteData
-              ? `Ruta: ${selectedRouteData.label}`
-              : 'Aún no hay ruta seleccionada.'}
-          </Text>
+            {/* Row 1: Route label + change button */}
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardRouteInfo}>
+                <MaterialCommunityIcons name="bus-multiple" size={16} color={colors.primary} />
+                <Text style={styles.cardRouteLabel} numberOfLines={1}>
+                  {selectedRouteLabel || 'Sin ruta seleccionada'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.changeRouteBtn}
+                onPress={() => navigation.navigate('MainTabs', { screen: 'RoutesTab' })}
+              >
+                <MaterialCommunityIcons name="swap-horizontal" size={14} color={colors.primary} />
+                <Text style={styles.changeRouteBtnText}>Cambiar</Text>
+              </TouchableOpacity>
+            </View>
 
-          <AppButton
-            title="Cambiar ruta"
-            variant="secondary"
-            iconName="swap-horizontal"
-            onPress={() => navigation.navigate('MainTabs', { screen: 'HomeTab' })}
-          />
+            {/* Divider */}
+            <View style={styles.cardDivider} />
 
-          <Text style={styles.overlayHint}>
-            {selectedRoute
-              ? 'Ruta seleccionada'
-              : 'Selecciona una ruta en Inicio'}
-            {' · '}
-            {permissionStatus === 'granted'
-              ? 'Ubicación activa'
-              : permissionStatus === 'denied'
-                ? 'Ubicación denegada'
-                : 'Solicitando ubicación'}
-            {lastUpdatedAt ? ` · actualizado ${lastUpdatedAt}` : ''}
-          </Text>
+            {/* Row 2: ETA block */}
+            {etaData ? (
+              <View style={styles.etaRow}>
+                <MaterialCommunityIcons
+                  name={getEtaIcon(etaData.confidence)}
+                  size={28}
+                  color={getEtaColor(etaData.confidence)}
+                />
+                <View style={styles.etaTextBlock}>
+                  <Text style={[styles.etaMinutes, { color: getEtaColor(etaData.confidence) }]}>
+                    {etaData.etaMinutos} min
+                  </Text>
+                  <Text style={styles.etaSubtext}>
+                    {etaData.etaRangoMinutos
+                      ? `Rango estimado: ${etaData.etaRangoMinutos.min}–${etaData.etaRangoMinutos.max} min`
+                      : etaData.nearestStop?.nombre
+                        ? `Parada: ${etaData.nearestStop.nombre}`
+                        : 'Llegada estimada de tu buseta'}
+                  </Text>
+                </View>
+              </View>
+            ) : etaLoading ? (
+              <View style={styles.etaRow}>
+                <MaterialCommunityIcons name="radar" size={26} color={colors.primary} />
+                <Text style={styles.etaLoadingText}>Calculando tiempo de llegada...</Text>
+              </View>
+            ) : etaError ? (
+              <View style={styles.etaRow}>
+                <MaterialCommunityIcons name="wifi-off" size={24} color={colors.textMuted} />
+                <View style={styles.etaTextBlock}>
+                  <Text style={styles.etaNoDataTitle}>Sin datos en tiempo real</Text>
+                  <Text style={styles.etaNoDataSubtext}>No hay busetas activas en este momento.</Text>
+                </View>
+              </View>
+            ) : selectedRoute ? (
+              <View style={styles.etaRow}>
+                <MaterialCommunityIcons name="radar" size={26} color={colors.primary} />
+                <Text style={styles.etaLoadingText}>Consultando ETA...</Text>
+              </View>
+            ) : null}
 
-          {etaData?.routeShape ? (
-            <Text style={styles.overlayDebug}>
-              Trazo: {etaData.routeShape.source || 'N/D'}
-              {etaData.routeShape.fallbackReason ? ` (${etaData.routeShape.fallbackReason})` : ''}
-              {Number.isFinite(Number(etaData.routeShape.totalPoints)) ? ` · pts ${etaData.routeShape.totalPoints}` : ''}
-            </Text>
-          ) : null}
+            {/* Row 3: Status pills */}
+            <View style={styles.statusRow}>
+              <View style={[styles.statusPill, permissionStatus === 'granted' ? styles.pillGreen : styles.pillGray]}>
+                <MaterialCommunityIcons
+                  name={permissionStatus === 'granted' ? 'crosshairs-gps' : 'crosshairs'}
+                  size={11}
+                  color={permissionStatus === 'granted' ? '#22C55E' : colors.textMuted}
+                />
+                <Text style={[styles.pillText, permissionStatus === 'granted' ? styles.pillTextGreen : styles.pillTextGray]}>
+                  {permissionStatus === 'granted' ? 'Ubicación activa' : 'Sin ubicación'}
+                </Text>
+              </View>
+              {Object.keys(activeBuses).length > 0 ? (
+                <View style={[styles.statusPill, styles.pillGreen]}>
+                  <MaterialCommunityIcons name="bus" size={11} color="#22C55E" />
+                  <Text style={[styles.pillText, styles.pillTextGreen]}>
+                    {Object.keys(activeBuses).length} bus{Object.keys(activeBuses).length !== 1 ? 'etas' : 'eta'} activa{Object.keys(activeBuses).length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              ) : null}
+              {lastUpdatedAt ? (
+                <Text style={styles.updatedAt}>act. {lastUpdatedAt}</Text>
+              ) : null}
+            </View>
 
-          {etaLoading ? <Text style={styles.loadingText}>Actualizando ETA...</Text> : null}
-          {!!etaError ? <Text style={styles.errorText}>{etaError}</Text> : null}
           </AppCard>
         </AnimatedEntrance>
       </View>
@@ -437,46 +527,142 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  floatingBackButton: {
+    position: 'absolute',
+    top: Platform.select({ ios: 44, android: 16, default: 16 }),
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
   overlayCard: {
     position: 'absolute',
     left: 12,
     right: 12,
     bottom: 14,
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  /* Header row */
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cardRouteInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    paddingBottom: 8,
+    flex: 1,
   },
-  overlayEta: {
+  cardRouteLabel: {
     color: colors.text,
-    lineHeight: 20,
-    fontWeight: '900',
-    fontSize: 16,
-    letterSpacing: -0.2,
+    fontWeight: '700',
+    fontSize: 14,
+    flex: 1,
   },
-  overlayRoute: {
-    color: colors.text,
-    lineHeight: 18,
-    fontWeight: '600',
+  changeRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: colors.primary + '18',
   },
-  overlayHint: {
-    color: colors.textMuted,
-    lineHeight: 16,
-    fontSize: 12,
-  },
-  loadingText: {
+  changeRouteBtnText: {
     color: colors.primary,
-    fontSize: 12,
     fontWeight: '700',
+    fontSize: 12,
   },
-  overlayDebug: {
-    color: colors.warning,
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border || colors.textMuted + '30',
+    marginVertical: 2,
+  },
+  /* ETA block */
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 44,
+  },
+  etaTextBlock: {
+    flex: 1,
+  },
+  etaMinutes: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -1,
+    lineHeight: 32,
+  },
+  etaSubtext: {
+    color: colors.textMuted,
     fontSize: 12,
     lineHeight: 16,
+    marginTop: 1,
+  },
+  etaLoadingText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  etaNoDataTitle: {
+    color: colors.text,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  etaNoDataSubtext: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  /* Status pills row */
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  pillGreen: {
+    backgroundColor: '#22C55E18',
+  },
+  pillGray: {
+    backgroundColor: colors.textMuted + '18',
+  },
+  pillText: {
+    fontSize: 11,
     fontWeight: '700',
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: 12,
-    lineHeight: 16,
+  pillTextGreen: {
+    color: '#22C55E',
+  },
+  pillTextGray: {
+    color: colors.textMuted,
+  },
+  updatedAt: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginLeft: 'auto',
   },
   webFallbackWrap: {
     flex: 1,

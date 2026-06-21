@@ -12,8 +12,9 @@ import { useAuth } from '../context/AuthContext';
 import { addRoute, deleteRoute, editRoute, getRoutesByLine } from '../services/apiService';
 import { colors } from '../theme/colors';
 import { getErrorText } from '../utils/error';
+import AppHeroHeader from '../components/AppHeroHeader';
 
-export default function RoutesManagementScreen() {
+export default function RoutesManagementScreen({ navigation }) {
   const { token, user } = useAuth();
 
   const [rutas, setRutas] = useState([]);
@@ -78,11 +79,12 @@ export default function RoutesManagementScreen() {
     );
   }
 
-  const runAction = async (key, action) => {
+  const runAction = async (key, action, onSuccess) => {
     try {
       setLoadingKey(key);
       await action();
       setFeedback({ tone: 'success', message: 'Operación completada correctamente.' });
+      if (onSuccess) await onSuccess();
     } catch (error) {
       const message = getErrorText(error);
       setFeedback({ tone: 'error', message });
@@ -94,11 +96,11 @@ export default function RoutesManagementScreen() {
   return (
     <AppScreen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.headerRow}>
-          <MaterialCommunityIcons name="map-marker-path" size={28} color={colors.primary} />
-          <Text style={styles.header}>Gestión de rutas</Text>
-        </View>
-        <Text style={styles.subheader}>Crea, edita o elimina rutas asociadas a tu línea.</Text>
+        <AppHeroHeader
+          title="Gestión de rutas"
+          subtitle="Crea, edita o elimina rutas asociadas a tu línea."
+          onBack={() => navigation.goBack()}
+        />
 
         <AppCard>
           <AccordionSection title="Crear ruta" defaultExpanded contentStyle={styles.sectionBody}>
@@ -194,14 +196,11 @@ export default function RoutesManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 14, paddingBottom: 28, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }) },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  header: { color: colors.text, fontSize: 24, fontWeight: '800' },
-  subheader: { color: colors.textMuted, lineHeight: 20 },
-  helperText: { color: colors.textMuted, lineHeight: 20, fontSize: 13 },
-  sectionTitle: { color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 8 },
+  content: { gap: 24, paddingBottom: 40, paddingTop: Platform.select({ ios:10, android: 50, default: 50 }), paddingHorizontal: 24 },
+  helperText: { color: colors.textMuted, lineHeight: 22, fontSize: 14 },
+  sectionTitle: { color: colors.primaryDark, fontWeight: '700', fontSize: 16, marginBottom: 8 },
   sectionBody: { marginTop: 10 },
-  form: { gap: 10 },
+  form: { gap: 12 },
   feedback: { marginTop: 4 },
   deniedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, gap: 8 },
   deniedTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
