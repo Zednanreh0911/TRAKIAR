@@ -5,6 +5,7 @@
     "scheme": "trakiar",
     "owner": "andromeda0911",
     "version": "1.0.0",
+    "icon": "./assets/LOGO.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
@@ -13,12 +14,22 @@
     "ios": {
       "supportsTablet": true
     },
+    "android": {
+      "package": "com.trakiar.app"
+    },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin",
+      [
+        "@rnmapbox/maps",
+        {
+          "accessToken": "pk.eyJ1IjoiYW5kcm9tZWRhMDkiLCJhIjoiY21vMXQ3NnJzMG0zaTJwcTR0bHZ5cmg4biJ9.NPWNUVc6EEqfzIa9VtXwfw"
+        }
+      ]
     ],
     "extra": {
       "eas": {

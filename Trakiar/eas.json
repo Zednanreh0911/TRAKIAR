@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SERVER_URL": "https://trakiar.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "381564418383-o4vfcqg2376ehrmf4ne80bct84bpn6a2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_PROXY_PROJECT_NAME": "@andromeda0911/trakiar",
+        "EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN": "pk.eyJ1IjoiYW5kcm9tZWRhMDkiLCJhIjoiY21vMXQ3NnJzMG0zaTJwcTR0bHZ5cmg4biJ9.NPWNUVc6EEqfzIa9VtXwfw"
+      }
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+}

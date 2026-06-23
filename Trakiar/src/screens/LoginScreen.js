@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, View, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AppButton from '../components/AppButton';
 import AppInput from '../components/AppInput';
 import AppScreen from '../components/AppScreen';
@@ -12,28 +11,21 @@ import { colors } from '../theme/colors';
 import {
   GOOGLE_ANDROID_CLIENT_ID,
   GOOGLE_IOS_CLIENT_ID,
-  GOOGLE_PROXY_PROJECT_NAME,
-  GOOGLE_PROXY_REDIRECT_URI,
   GOOGLE_WEB_CLIENT_ID,
 } from '../config/auth';
-
-WebBrowser.maybeCompleteAuthSession();
-
 export default function LoginScreen({ navigation }) {
   const { signIn, signInWithGoogle } = useAuth();
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const canUseGoogleProxy = Boolean(GOOGLE_PROXY_PROJECT_NAME?.trim());
 
-  const [googleRequest, , promptGoogleAsync] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    expoClientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    redirectUri: GOOGLE_PROXY_REDIRECT_URI || undefined,
-  });
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+      iosClientId: GOOGLE_IOS_CLIENT_ID,
+    });
+  }, []);
 
   const onLogin = async () => {
     if (!correo || !password) {
@@ -58,8 +50,7 @@ export default function LoginScreen({ navigation }) {
         <SafeAreaView style={styles.flex}>
           <View style={styles.content}>
             <View style={styles.header}>
-              <MaterialCommunityIcons name="cube-outline" size={56} color={colors.primary} />
-              <Text style={styles.brandTitle}>Trakiar</Text>
+              <Image source={require('../../assets/INICIO2.png')} style={styles.logoImage} />
               <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
             </View>
 
@@ -86,33 +77,19 @@ export default function LoginScreen({ navigation }) {
                   onPress={onLogin}
                   loading={loading}
                 />
-                
+
                 <AppButton
                   title="Iniciar con Google"
                   variant="secondary"
                   iconName="google"
                   onPress={() => {
-                    if (!canUseGoogleProxy) {
-                      Alert.alert(
-                        'Google login',
-                        'Para usar Google en Expo Go necesitas un proyecto de Expo con nombre @owner/slug.'
-                      );
-                      return;
-                    }
-
                     (async () => {
                       try {
                         setLoading(true);
-                        const result = await promptGoogleAsync({
-                          projectNameForProxy: GOOGLE_PROXY_PROJECT_NAME,
-                        });
+                        await GoogleSignin.hasPlayServices();
+                        const userInfo = await GoogleSignin.signIn();
+                        const idToken = userInfo.data?.idToken || userInfo.idToken;
 
-                        if (result?.type !== 'success') {
-                          Alert.alert('Google', 'No se pudo completar el inicio con Google.');
-                          return;
-                        }
-
-                        const idToken = result?.params?.id_token || result?.authentication?.idToken;
                         if (!idToken) {
                           Alert.alert('Google', 'No se recibió el token de Google.');
                           return;
@@ -127,9 +104,9 @@ export default function LoginScreen({ navigation }) {
                       }
                     })();
                   }}
-                  disabled={!googleRequest || !canUseGoogleProxy}
+                  disabled={loading}
                 />
-                
+
                 <AppButton
                   title="Crear cuenta"
                   variant="secondary"
@@ -158,11 +135,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 20,
+  },
+  logoImage: {
+    width: 310,
+    height: 310,
+    resizeMode: 'contain',
+    marginBottom: -60,
   },
   brandTitle: {
     fontSize: 28,
@@ -176,8 +159,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 8,
   },
-  form: { 
-    gap: 16 
+  form: {
+    gap: 16
   },
   buttonsContainer: {
     gap: 12,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AnimatedEntrance from '../components/AnimatedEntrance';
@@ -10,25 +10,14 @@ import { createPassengerRealtimeSocket } from '../services/realtimeService';
 import { colors } from '../theme/colors';
 import { getErrorText } from '../utils/error';
 
-let MapView;
-let Marker;
-let Polyline;
-let AnimatedRegionCls;
+let Mapbox;
 
 if (Platform.OS !== 'web') {
-  const maps = require('react-native-maps');
-  MapView = maps.default;
-  Marker = maps.Marker;
-  Polyline = maps.Polyline;
-  AnimatedRegionCls = maps.AnimatedRegion;
+  Mapbox = require('@rnmapbox/maps').default;
+  Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiYW5kcm9tZWRhMDkiLCJhIjoiY21vMXQ3NnJzMG0zaTJwcTR0bHZ5cmg4biJ9.NPWNUVc6EEqfzIa9VtXwfw');
 }
 
-const INITIAL_REGION = {
-  latitude: 7.1193,
-  longitude: -73.1227,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
-};
+const INITIAL_COORDINATE = [-73.1227, 7.1193];
 
 const LOCATION_REFRESH_MS = 25000;
 const ETA_REFRESH_MS = 20000;
@@ -46,14 +35,29 @@ const getEtaColor = (confidence) => {
   return colors.textMuted;
 };
 
+function getBearing(startLat, startLng, destLat, destLng) {
+  const startLatRad = (startLat * Math.PI) / 180;
+  const startLngRad = (startLng * Math.PI) / 180;
+  const destLatRad = (destLat * Math.PI) / 180;
+  const destLngRad = (destLng * Math.PI) / 180;
+
+  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+  const x =
+    Math.cos(startLatRad) * Math.sin(destLatRad) -
+    Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+  let brng = Math.atan2(y, x);
+  brng = (brng * 180) / Math.PI;
+  return (brng + 360) % 360;
+}
+
 export default function UserMapScreen({ navigation, route }) {
   const { token } = useAuth();
   const mapRef = useRef(null);
+  const cameraRef = useRef(null);
   const etaPollRef = useRef(null);
   const locationPollRef = useRef(null);
   const realtimeSocketRef = useRef(null);
   const etaCacheRef = useRef(new Map());
-  const animatedRegionsRef = useRef({});
 
   const [permissionStatus, setPermissionStatus] = useState('pending');
   const [userLocation, setUserLocation] = useState(null);
@@ -89,33 +93,6 @@ export default function UserMapScreen({ navigation, route }) {
     };
   }, [etaData]);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-
-    const now = Date.now();
-    Object.values(activeBuses).forEach(bus => {
-      const lastUpdate = new Date(bus.lastUpdate || 0).getTime();
-      if (!lastUpdate || now - lastUpdate > REALTIME_STALE_MS) return;
-
-      const id = bus.idUnidad;
-      if (!animatedRegionsRef.current[id]) {
-        animatedRegionsRef.current[id] = new AnimatedRegionCls({
-          latitude: bus.latitud,
-          longitude: bus.longitud,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      } else {
-        animatedRegionsRef.current[id].timing({
-          latitude: bus.latitud,
-          longitude: bus.longitud,
-          duration: 5000,
-          useNativeDriver: false,
-        }).start();
-      }
-    });
-  }, [activeBuses]);
-
   const routePolylineCoordinates = useMemo(() => {
     const points = (etaData?.routeShape || persistedRouteShape)?.coordinates;
     if (!Array.isArray(points) || points.length < 2) {
@@ -123,11 +100,8 @@ export default function UserMapScreen({ navigation, route }) {
     }
 
     return points
-      .map((point) => ({
-        latitude: Number(point.latitud),
-        longitude: Number(point.longitud),
-      }))
-      .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+      .map((point) => [Number(point.longitud), Number(point.latitud)])
+      .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
   }, [etaData, persistedRouteShape]);
 
   const captureUserLocation = useCallback(async () => {
@@ -145,14 +119,11 @@ export default function UserMapScreen({ navigation, route }) {
     };
 
     setUserLocation(coordinate);
-    mapRef.current?.animateToRegion(
-      {
-        ...coordinate,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      },
-      600
-    );
+    cameraRef.current?.setCamera({
+      centerCoordinate: [coordinate.longitude, coordinate.latitude],
+      zoomLevel: 15,
+      animationDuration: 600,
+    });
   }, []);
 
   const requestLocationAccess = useCallback(async () => {
@@ -305,31 +276,42 @@ export default function UserMapScreen({ navigation, route }) {
     realtimeSocketRef.current = createPassengerRealtimeSocket({
       token,
       idRuta: selectedRoute,
-      onOpen: () => {},
-      onClose: () => {},
-      onError: () => {},
+      onOpen: () => { },
+      onClose: () => { },
+      onError: () => { },
       onMessage: (payload) => {
         if (payload?.type === 'driver_location' && payload?.data) {
           const busData = payload.data;
           const idUnidad = busData.idUnidad;
           const lastUpdate = busData.lastUpdate || busData.ultimaUbicacion?.capturedAt || null;
-          const latitud = busData.ultimaUbicacion?.latitud ?? busData.latitud;
-          const longitud = busData.ultimaUbicacion?.longitud ?? busData.longitud;
+          const latitud = Number(busData.ultimaUbicacion?.latitud ?? busData.latitud);
+          const longitud = Number(busData.ultimaUbicacion?.longitud ?? busData.longitud);
           const velocidadKmh = busData.ultimaUbicacion?.velocidadKmh ?? busData.velocidadKmh ?? null;
           const unidadIdentificador = busData.unidadIdentificador;
 
           if (latitud != null && longitud != null && idUnidad) {
-            setActiveBuses((prev) => ({
-              ...prev,
-              [idUnidad]: {
-                idUnidad,
-                unidadIdentificador,
-                latitud: Number(latitud),
-                longitud: Number(longitud),
-                velocidadKmh,
-                lastUpdate,
-              },
-            }));
+            setActiveBuses((prev) => {
+              const prevBus = prev[idUnidad];
+              let bearing = 0;
+              if (prevBus && prevBus.latitud && prevBus.longitud) {
+                bearing = getBearing(prevBus.latitud, prevBus.longitud, latitud, longitud);
+                if (prevBus.latitud === latitud && prevBus.longitud === longitud) {
+                  bearing = prevBus.bearing || 0;
+                }
+              }
+              return {
+                ...prev,
+                [idUnidad]: {
+                  idUnidad,
+                  unidadIdentificador,
+                  latitud,
+                  longitud,
+                  velocidadKmh,
+                  lastUpdate,
+                  bearing,
+                },
+              };
+            });
           }
         }
       },
@@ -359,61 +341,99 @@ export default function UserMapScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <MapView
+        <Mapbox.MapView
           ref={mapRef}
           style={styles.map}
-          initialRegion={INITIAL_REGION}
-          showsUserLocation
-          showsMyLocationButton
-          loadingEnabled
+          styleURL={Mapbox.StyleURL.Street}
         >
+          <Mapbox.Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: INITIAL_COORDINATE,
+              zoomLevel: 13.5,
+              pitch: 45,
+            }}
+          />
+
+          <Mapbox.UserLocation visible={true} showsUserHeadingIndicator={true} />
+
           {routePolylineCoordinates.length >= 2 ? (
-            <Polyline
-              coordinates={routePolylineCoordinates}
-              strokeColor={colors.primary}
-              strokeWidth={5}
-            />
+            <Mapbox.ShapeSource
+              id="routeSource"
+              shape={{
+                type: 'Feature',
+                properties: {},
+                geometry: {
+                  type: 'LineString',
+                  coordinates: routePolylineCoordinates,
+                },
+              }}
+            >
+              <Mapbox.LineLayer
+                id="routeLine"
+                style={{
+                  lineColor: colors.primary,
+                  lineWidth: 5,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                }}
+              />
+            </Mapbox.ShapeSource>
           ) : null}
 
           {Object.values(activeBuses).map((bus) => {
-            const region = animatedRegionsRef.current[bus.idUnidad];
-            if (!region) return null;
-            
             const lastUpdate = new Date(bus.lastUpdate || 0).getTime();
             if (!lastUpdate || Date.now() - lastUpdate > REALTIME_STALE_MS) return null;
 
             const isTarget = etaData?.metadata?.idUnidad === bus.idUnidad;
-            
+
             return (
-              <Marker.Animated
+              <Mapbox.MarkerView
                 key={String(bus.idUnidad)}
-                coordinate={region}
-                title={isTarget ? "Tu buseta (más cercana)" : "Buseta activa"}
-                description={`Unidad: ${bus.unidadIdentificador || bus.idUnidad}`}
-                pinColor={isTarget ? colors.primaryDark : colors.primary}
-                zIndex={isTarget ? 10 : 1}
-              />
+                id={String(bus.idUnidad)}
+                coordinate={[bus.longitud, bus.latitud]}
+              >
+                <View style={styles.markerContainer}>
+                  <Image
+                    source={require('../../assets/BUS3D.png')}
+                    style={[
+                      styles.busMarkerImage,
+                      { transform: [{ rotate: `${bus.bearing || 0}deg` }] }
+                    ]}
+                  />
+                  {isTarget && (
+                    <View style={styles.targetIndicator} />
+                  )}
+                </View>
+              </Mapbox.MarkerView>
             );
           })}
 
           {!activeBuses[etaData?.metadata?.idUnidad] && etaData?.bus?.latitud && etaData?.bus?.longitud ? (
-            <Marker
-              coordinate={{ latitude: Number(etaData.bus.latitud), longitude: Number(etaData.bus.longitud) }}
-              title="Buseta en ruta (Estimada)"
-              description="Última ubicación conocida de tu buseta"
-              pinColor={colors.primaryDark}
-            />
+            <Mapbox.MarkerView
+              id="estimatedBus"
+              coordinate={[Number(etaData.bus.longitud), Number(etaData.bus.latitud)]}
+            >
+              <View style={[styles.markerContainer, { opacity: 0.75 }]}>
+                <Image
+                  source={require('../../assets/BUS3D.png')}
+                  style={[styles.busMarkerImage]}
+                />
+              </View>
+            </Mapbox.MarkerView>
           ) : null}
 
           {nearestStopCoordinate ? (
-            <Marker
-              coordinate={nearestStopCoordinate}
-              title={etaData?.nearestStop?.nombre || 'Punto de encuentro'}
-              description="Punto cercano para abordar"
-              pinColor={colors.success}
-            />
+            <Mapbox.MarkerView
+              id="nearestStop"
+              coordinate={[nearestStopCoordinate.longitude, nearestStopCoordinate.latitude]}
+            >
+              <View style={styles.stopMarkerContainer}>
+                <MaterialCommunityIcons name="bus-stop" size={20} color="#ffffff" />
+              </View>
+            </Mapbox.MarkerView>
           ) : null}
-        </MapView>
+        </Mapbox.MapView>
 
         <TouchableOpacity style={styles.floatingBackButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primaryDark} />
@@ -681,5 +701,41 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 21,
+  },
+  markerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 110,
+    height: 110,
+  },
+  busMarkerImage: {
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
+  },
+  targetIndicator: {
+    position: 'absolute',
+    bottom: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  stopMarkerContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
