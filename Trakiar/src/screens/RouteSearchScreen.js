@@ -1,19 +1,22 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import AppButton from '../components/AppButton';
-import AppCard from '../components/AppCard';
-import AppInput from '../components/AppInput';
-import AppScreen from '../components/AppScreen';
-import { useAuth } from '../context/AuthContext';
-import { searchRoutes } from '../services/apiService';
-import { colors } from '../theme/colors';
-import { getErrorText } from '../utils/error';
-import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import AppButton from "../components/AppButton";
+import AppCard from "../components/AppCard";
+import AppInput from "../components/AppInput";
+import AppScreen from "../components/AppScreen";
+import RouteResultCard from "../components/RouteResultCard";
+import { useAuth } from "../context/AuthContext";
+import { searchRoutes } from "../services/apiService";
+import { getSearchLocation } from "../services/locationService";
+import { colors } from "../theme/colors";
+import { enrichRoutesWithEta } from "../utils/routeEta";
+import { getErrorText } from "../utils/error";
+import { useState } from "react";
 
 export default function RouteSearchScreen() {
   const { token } = useAuth();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState('');
+  const [errorText, setErrorText] = useState("");
   const [routes, setRoutes] = useState([]);
   const [searched, setSearched] = useState(false);
 
@@ -21,15 +24,16 @@ export default function RouteSearchScreen() {
     const normalized = query.trim();
 
     if (normalized.length < 2) {
-      setErrorText('Escribe al menos 2 caracteres para buscar rutas.');
+      setErrorText("Escribe al menos 2 caracteres para buscar rutas.");
       return;
     }
 
     try {
       setLoading(true);
-      setErrorText('');
-      const response = await searchRoutes(token, normalized);
-      setRoutes(response?.rutas || []);
+      setErrorText("");
+      const searchLocation = await getSearchLocation();
+      const response = await searchRoutes(token, normalized, searchLocation);
+      setRoutes(enrichRoutesWithEta(response?.rutas || []));
       setSearched(true);
     } catch (error) {
       setRoutes([]);
@@ -42,26 +46,33 @@ export default function RouteSearchScreen() {
 
   return (
     <AppScreen>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.hero}>
           <Text style={styles.title}>Buscar rutas</Text>
           <Text style={styles.subtitle}>
-            Busca por línea o por palabras de la descripción. Ejemplo: ferrero tamayo, arbolitos, palo gordo.
+            Busca por punto clave para ver las rutas asociadas y el ETA local.
           </Text>
         </View>
 
         <AppCard>
           <View style={styles.searchGroup}>
             <AppInput
-              label="¿A dónde vas?"
+              label="¿A qué punto clave vas?"
               value={query}
               onChangeText={setQuery}
-              placeholder="Escribe línea o lugar..."
+              placeholder="Escribe un punto clave..."
               autoCapitalize="none"
               returnKeyType="search"
               onSubmitEditing={handleSearch}
             />
-            <AppButton title={loading ? 'Buscando...' : 'Buscar rutas'} onPress={handleSearch} loading={loading} />
+            <AppButton
+              title={loading ? "Buscando..." : "Buscar rutas"}
+              onPress={handleSearch}
+              loading={loading}
+            />
           </View>
           {!!errorText && <Text style={styles.errorText}>{errorText}</Text>}
         </AppCard>
@@ -69,16 +80,15 @@ export default function RouteSearchScreen() {
         {searched && routes.length === 0 && !loading ? (
           <AppCard>
             <Text style={styles.emptyTitle}>Sin coincidencias</Text>
-            <Text style={styles.emptyText}>Intenta con otra combinación de palabras o con el nombre de la línea.</Text>
+            <Text style={styles.emptyText}>
+              Intenta con otro punto clave, otro nombre de ruta o una variación
+              del punto.
+            </Text>
           </AppCard>
         ) : null}
 
         {routes.map((route) => (
-          <AppCard key={String(route.id)}>
-            <Text style={styles.routeTitle}>{route.nombre}</Text>
-            <Text style={styles.routeMeta}>Línea: {route.linea_nombre || 'N/D'}</Text>
-            <Text style={styles.routeDescription}>{route.descripcion || 'Sin descripción registrada.'}</Text>
-          </AppCard>
+          <RouteResultCard key={String(route.id)} routeItem={route} />
         ))}
       </ScrollView>
     </AppScreen>
@@ -97,7 +107,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   subtitle: {
     color: colors.textMuted,
@@ -114,25 +124,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 6,
   },
   emptyText: {
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  routeTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  routeMeta: {
-    color: colors.primary,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  routeDescription: {
     color: colors.textMuted,
     lineHeight: 20,
   },

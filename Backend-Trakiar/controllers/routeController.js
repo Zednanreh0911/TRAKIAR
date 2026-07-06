@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { getActiveRouteForRouteId } = require("../realtime/realtimeHub");
 
 const splitSearchTokens = (input) =>
   String(input || "")
@@ -680,13 +681,13 @@ const listRoutesByLine = async (req, res) => {
 
     if (fechaHasta) {
       params.push(fechaHasta);
-      dateFilters.push(`r.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+      dateFilters.push(
+        `r.created_at < ($${params.length}::date + INTERVAL '1 day')`,
+      );
     }
 
     const whereClause =
-      dateFilters.length > 0
-        ? `AND ${dateFilters.join(" AND ")}`
-        : "";
+      dateFilters.length > 0 ? `AND ${dateFilters.join(" AND ")}` : "";
 
     const rutas = await pool.query(
       `SELECT
@@ -708,7 +709,10 @@ const listRoutesByLine = async (req, res) => {
     return res.status(200).json({
       message: "Rutas obtenidas exitosamente",
       idLinea: gerenteLinea.id_linea,
-      filtros: { fechaDesde: fechaDesde || null, fechaHasta: fechaHasta || null },
+      filtros: {
+        fechaDesde: fechaDesde || null,
+        fechaHasta: fechaHasta || null,
+      },
       rutas: rutas.rows,
     });
   } catch (error) {
@@ -718,50 +722,258 @@ const listRoutesByLine = async (req, res) => {
 };
 
 const searchRoutes = async (req, res) => {
-  const queryText = String(req.query.q || "").trim();
+  const queryText = String(req.query.puntoClave || req.query.q || "").trim();
   const tokens = splitSearchTokens(queryText);
+  const latitudUsuario = toFiniteNumber(
+    req.query.latitudUsuario || req.query.latitud,
+  );
+  const longitudUsuario = toFiniteNumber(
+    req.query.longitudUsuario || req.query.longitud,
+  );
 
   if (tokens.length === 0) {
-    return res
-      .status(400)
-      .json({ error: "Debes enviar un texto de búsqueda (parámetro q)." });
+    return res.status(400).json({
+      error: "Debes enviar un texto de búsqueda (parámetro q o puntoClave).",
+    });
   }
 
   try {
-    const whereClauses = tokens.map(
+    const routeMatchClauses = tokens.map(
       (_, index) =>
         `(LOWER(COALESCE(r.nombre, '')) LIKE $${index + 1} ESCAPE '\\'
           OR LOWER(COALESCE(r.descripcion, '')) LIKE $${index + 1} ESCAPE '\\'
-          OR LOWER(COALESCE(l.nombre, '')) LIKE $${index + 1} ESCAPE '\\')`,
+          OR LOWER(COALESCE(l.nombre, '')) LIKE $${index + 1} ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1
+            FROM punto_interes pi
+            WHERE pi.id_ruta = r.id
+              AND LOWER(COALESCE(pi.nombre, '')) LIKE $${index + 1} ESCAPE '\\'
+          ))`,
     );
+
+    const pointWhereClauses = tokens.map(
+      (_, index) =>
+        `LOWER(COALESCE(pi.nombre, '')) LIKE $${index + 1} ESCAPE '\\'`,
+    );
+
+    const pointSearchClause = pointWhereClauses.join(" AND ");
 
     const params = tokens.map((token) => `%${escapeLikeToken(token)}%`);
 
     const rutas = await pool.query(
-      `SELECT
-         r.id,
-         r.id_linea,
-         l.nombre AS linea_nombre,
-         l.tipo_linea AS linea_tipo,
-         r.nombre,
-         r.descripcion,
-         r.created_at,
-         r.modified_at,
-         r.modified_by
-       FROM ruta r
-       INNER JOIN linea l ON l.id = r.id_linea
-       WHERE ${whereClauses.join(" AND ")}
-       ORDER BY r.id DESC
-       LIMIT 50`,
+      `WITH candidate_routes AS (
+         SELECT DISTINCT ON (r.id)
+           r.id,
+           r.id_linea,
+           l.nombre AS linea_nombre,
+           l.tipo_linea AS linea_tipo,
+           r.nombre,
+           r.descripcion,
+           r.created_at,
+           r.modified_at,
+           r.modified_by
+         FROM ruta r
+         INNER JOIN linea l ON l.id = r.id_linea
+         WHERE ${routeMatchClauses.join(" AND ")}
+         ORDER BY r.id DESC
+         LIMIT 50
+       )
+       SELECT
+         cr.id,
+         cr.id_linea,
+         cr.linea_nombre,
+         cr.linea_tipo,
+         cr.nombre,
+         cr.descripcion,
+         cr.created_at,
+         cr.modified_at,
+         cr.modified_by,
+         COALESCE(mp.id, fp.id) AS punto_clave_id,
+         COALESCE(mp.nombre, fp.nombre) AS punto_clave_nombre,
+         COALESCE(mp.orden, fp.orden) AS punto_clave_orden,
+         COALESCE(mp.latitud, fp.latitud) AS punto_clave_latitud,
+         COALESCE(mp.longitud, fp.longitud) AS punto_clave_longitud,
+         ul.id_unidad,
+         ul.latitud AS unidad_latitud,
+         ul.longitud AS unidad_longitud,
+         ul.velocidad_kmh AS unidad_velocidad_kmh,
+         ul.created_at AS unidad_created_at,
+         ul.age_seconds AS unidad_age_seconds
+       FROM candidate_routes cr
+       LEFT JOIN LATERAL (
+         SELECT pi.id, pi.nombre, pi.orden, pi.latitud, pi.longitud
+         FROM punto_interes pi
+         WHERE pi.id_ruta = cr.id
+           AND ${pointSearchClause}
+         ORDER BY pi.orden ASC, pi.id ASC
+         LIMIT 1
+       ) mp ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT pi.id, pi.nombre, pi.orden, pi.latitud, pi.longitud
+         FROM punto_interes pi
+         WHERE pi.id_ruta = cr.id
+         ORDER BY pi.orden ASC, pi.id ASC
+         LIMIT 1
+       ) fp ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT DISTINCT ON (u.id_unidad)
+           u.id_unidad,
+           u.latitud,
+           u.longitud,
+           u.velocidad_kmh,
+           u.created_at,
+           EXTRACT(EPOCH FROM (NOW() - u.created_at))::int AS age_seconds
+         FROM ubicacion u
+         WHERE u.id_ruta = cr.id
+           AND u.created_at >= NOW() - INTERVAL '5 minutes'
+         ORDER BY u.id_unidad, u.created_at DESC
+       ) ul ON TRUE
+       ORDER BY cr.id DESC, COALESCE(mp.orden, fp.orden, 0) ASC, ul.id_unidad ASC`,
       params,
+    );
+
+    const groupedRoutes = new Map();
+
+    for (const row of rutas.rows) {
+      const routeId = Number(row.id);
+      const liveRoute = getActiveRouteForRouteId(routeId);
+      const routePointLat = Number(row.punto_clave_latitud);
+      const routePointLng = Number(row.punto_clave_longitud);
+      const distanciaUsuarioKm =
+        Number.isFinite(latitudUsuario) &&
+        Number.isFinite(longitudUsuario) &&
+        Number.isFinite(routePointLat) &&
+        Number.isFinite(routePointLng)
+          ? Number(
+              haversineKm(
+                latitudUsuario,
+                longitudUsuario,
+                routePointLat,
+                routePointLng,
+              ).toFixed(3),
+            )
+          : null;
+
+      if (!groupedRoutes.has(routeId)) {
+        groupedRoutes.set(routeId, {
+          id: routeId,
+          id_linea: Number(row.id_linea),
+          linea_nombre: row.linea_nombre,
+          linea_tipo: row.linea_tipo,
+          nombre: row.nombre,
+          descripcion: row.descripcion,
+          created_at: row.created_at,
+          modified_at: row.modified_at,
+          modified_by: row.modified_by,
+          punto_clave: row.punto_clave_id
+            ? {
+                id: Number(row.punto_clave_id),
+                nombre: row.punto_clave_nombre,
+                orden: Number(row.punto_clave_orden),
+                latitud: Number(row.punto_clave_latitud),
+                longitud: Number(row.punto_clave_longitud),
+              }
+            : null,
+          unidades_recientes: [],
+          tiene_tiempo_real: Boolean(liveRoute),
+          distancia_usuario_km: distanciaUsuarioKm,
+        });
+      } else {
+        const route = groupedRoutes.get(routeId);
+        route.tiene_tiempo_real = Boolean(liveRoute) || route.tiene_tiempo_real;
+        route.distancia_usuario_km = distanciaUsuarioKm;
+      }
+
+      if (row.id_unidad) {
+        groupedRoutes.get(routeId).unidades_recientes.push({
+          id_unidad: Number(row.id_unidad),
+          latitud: Number(row.unidad_latitud),
+          longitud: Number(row.unidad_longitud),
+          velocidad_kmh:
+            row.unidad_velocidad_kmh === null
+              ? null
+              : Number(row.unidad_velocidad_kmh),
+          created_at: row.unidad_created_at,
+          age_seconds: Number(row.unidad_age_seconds),
+        });
+      }
+
+      if (
+        liveRoute?.idUnidad != null &&
+        liveRoute?.ultimaUbicacion?.latitud != null &&
+        liveRoute?.ultimaUbicacion?.longitud != null
+      ) {
+        const route = groupedRoutes.get(routeId);
+        const liveUnit = {
+          id_unidad: Number(liveRoute.idUnidad),
+          latitud: Number(liveRoute.ultimaUbicacion.latitud),
+          longitud: Number(liveRoute.ultimaUbicacion.longitud),
+          velocidad_kmh:
+            liveRoute.ultimaUbicacion.velocidadKmh == null
+              ? null
+              : Number(liveRoute.ultimaUbicacion.velocidadKmh),
+          created_at:
+            liveRoute.ultimaUbicacion.capturedAt ||
+            liveRoute.lastUpdate ||
+            null,
+          age_seconds: 0,
+        };
+
+        const liveIndex = route.unidades_recientes.findIndex(
+          (unit) => Number(unit.id_unidad) === liveUnit.id_unidad,
+        );
+
+        if (liveIndex >= 0) {
+          route.unidades_recientes[liveIndex] = liveUnit;
+        } else {
+          route.unidades_recientes.push(liveUnit);
+        }
+      }
+    }
+
+    const rutasOrdenadas = Array.from(groupedRoutes.values()).sort(
+      (left, right) => {
+        const leftLive = Boolean(left.tiene_tiempo_real);
+        const rightLive = Boolean(right.tiene_tiempo_real);
+
+        if (leftLive !== rightLive) {
+          return leftLive ? -1 : 1;
+        }
+
+        const leftEta = Number.isFinite(left.etaMinutos)
+          ? left.etaMinutos
+          : Number.POSITIVE_INFINITY;
+        const rightEta = Number.isFinite(right.etaMinutos)
+          ? right.etaMinutos
+          : Number.POSITIVE_INFINITY;
+
+        if (leftEta !== rightEta) {
+          return leftEta - rightEta;
+        }
+
+        const leftDistance = Number.isFinite(left.distancia_usuario_km)
+          ? left.distancia_usuario_km
+          : Number.POSITIVE_INFINITY;
+        const rightDistance = Number.isFinite(right.distancia_usuario_km)
+          ? right.distancia_usuario_km
+          : Number.POSITIVE_INFINITY;
+
+        if (leftDistance !== rightDistance) {
+          return leftDistance - rightDistance;
+        }
+
+        return String(left.nombre || "").localeCompare(
+          String(right.nombre || ""),
+        );
+      },
     );
 
     return res.status(200).json({
       message: "Búsqueda de rutas completada",
       query: queryText,
       tokens,
-      total: rutas.rows.length,
-      rutas: rutas.rows,
+      total: rutasOrdenadas.length,
+      rutas: rutasOrdenadas,
     });
   } catch (error) {
     console.error(error);
@@ -966,7 +1178,7 @@ const estimateEtaToNearestStop = async (req, res) => {
     );
 
     const activeUnits = recentLocationResult.rows.filter(
-      (row) => Number(row.age_seconds) <= RECENT_LOCATION_MAX_AGE_SECONDS
+      (row) => Number(row.age_seconds) <= RECENT_LOCATION_MAX_AGE_SECONDS,
     );
 
     let recent = null;
@@ -977,7 +1189,7 @@ const estimateEtaToNearestStop = async (req, res) => {
         Number(unit.latitud),
         Number(unit.longitud),
         stopLat,
-        stopLng
+        stopLng,
       );
       if (dist < minDistance) {
         minDistance = dist;
@@ -1214,11 +1426,9 @@ const editRoute = async (req, res) => {
     );
 
     if (ruta.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          error: "Ruta no encontrada o no tienes permiso para editarla",
-        });
+      return res.status(404).json({
+        error: "Ruta no encontrada o no tienes permiso para editarla",
+      });
     }
 
     // Actualizar la ruta
@@ -1227,12 +1437,10 @@ const editRoute = async (req, res) => {
       [nombre, descripcion, req.user.id, idRuta],
     );
 
-    res
-      .status(200)
-      .json({
-        message: "Ruta actualizada exitosamente",
-        ruta: rutaActualizada.rows[0],
-      });
+    res.status(200).json({
+      message: "Ruta actualizada exitosamente",
+      ruta: rutaActualizada.rows[0],
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al actualizar la ruta" });
@@ -1251,11 +1459,9 @@ const deleteRoute = async (req, res) => {
     );
 
     if (ruta.rows.length === 0) {
-      return res
-        .status(404)
-        .json({
-          error: "Ruta no encontrada o no tienes permiso para eliminarla",
-        });
+      return res.status(404).json({
+        error: "Ruta no encontrada o no tienes permiso para eliminarla",
+      });
     }
 
     // Eliminar la ruta

@@ -1,8 +1,8 @@
-const { WebSocketServer } = require('ws');
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
+const { WebSocketServer } = require("ws");
+const jwt = require("jsonwebtoken");
+const pool = require("../db");
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_only_change_me';
+const JWT_SECRET = process.env.JWT_SECRET || "dev_only_change_me";
 const ACTIVE_ROUTE_TTL_MS = 90 * 1000;
 
 const managerSocketsByLine = new Map();
@@ -34,6 +34,16 @@ const getActiveRoutesMap = (lineId) => {
   return activeRoutesByLine.get(lineId);
 };
 
+const removeActiveRoute = (lineId, unitId) => {
+  const routesMap = activeRoutesByLine.get(Number(lineId));
+
+  if (!routesMap || !Number.isFinite(Number(unitId))) {
+    return false;
+  }
+
+  return routesMap.delete(Number(unitId));
+};
+
 const getRoutePassengersSet = (routeId) => {
   if (!passengerSocketsByRoute.has(routeId)) {
     passengerSocketsByRoute.set(routeId, new Set());
@@ -44,7 +54,8 @@ const getRoutePassengersSet = (routeId) => {
 
 const findActiveRoutesById = (routeId) => {
   const active = [];
-  for (const routesMap of activeRoutesByLine.values()) {
+  for (const [lineId, routesMap] of activeRoutesByLine.entries()) {
+    cleanupStaleRoutes(lineId);
     for (const route of routesMap.values()) {
       if (route.idRuta === routeId) {
         active.push({ ...route });
@@ -54,11 +65,27 @@ const findActiveRoutesById = (routeId) => {
   return active;
 };
 
+const getActiveRouteForRouteId = (routeId) => {
+  const activeRoutes = findActiveRoutesById(routeId);
+
+  if (activeRoutes.length === 0) {
+    return null;
+  }
+
+  return activeRoutes.sort(
+    (a, b) =>
+      new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime(),
+  )[0];
+};
+
 const buildSnapshot = (lineId) => {
   const routesMap = getActiveRoutesMap(lineId);
 
   return Array.from(routesMap.values())
-    .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime(),
+    )
     .map((route) => ({ ...route }));
 };
 
@@ -140,18 +167,21 @@ const registerActiveRouteUpdate = ({
   routesMap.set(idUnidad, next);
 
   broadcastToLineManagers(lineId, {
-    type: 'driver_location',
+    type: "driver_location",
     data: next,
   });
 
   broadcastToRoutePassengers(routeId, {
-    type: 'driver_location',
+    type: "driver_location",
     data: next,
   });
 };
 
 const getGerenteLinea = async (idUsuario) => {
-  const line = await pool.query('SELECT id_linea FROM gerente_linea WHERE id_usuario = $1 LIMIT 1', [idUsuario]);
+  const line = await pool.query(
+    "SELECT id_linea FROM gerente_linea WHERE id_usuario = $1 LIMIT 1",
+    [idUsuario],
+  );
   return line.rows[0] || null;
 };
 
@@ -171,7 +201,7 @@ const getDriverRealtimeScope = async (idUsuario, idRuta) => {
     INNER JOIN ruta r ON r.id = $2 AND r.id_linea = un.id_linea
     WHERE us.id = $1
     LIMIT 1`,
-    [idUsuario, idRuta]
+    [idUsuario, idRuta],
   );
 
   return result.rows[0] || null;
@@ -182,16 +212,30 @@ const handleDriverLocationMessage = async (socket, payload) => {
   const latitud = Number(payload?.latitud);
   const longitud = Number(payload?.longitud);
 
-  if (!Number.isFinite(idRuta) || !Number.isFinite(latitud) || !Number.isFinite(longitud)) {
-    sendJson(socket, { type: 'error', message: 'Mensaje inválido: idRuta, latitud y longitud son obligatorios.' });
+  if (
+    !Number.isFinite(idRuta) ||
+    !Number.isFinite(latitud) ||
+    !Number.isFinite(longitud)
+  ) {
+    sendJson(socket, {
+      type: "error",
+      message: "Mensaje inválido: idRuta, latitud y longitud son obligatorios.",
+    });
     return;
   }
 
   const driverScope = await getDriverRealtimeScope(socket.user.id, idRuta);
   if (!driverScope) {
-    sendJson(socket, { type: 'error', message: 'No se pudo validar la ruta para el chofer autenticado.' });
+    sendJson(socket, {
+      type: "error",
+      message: "No se pudo validar la ruta para el chofer autenticado.",
+    });
     return;
   }
+
+  socket.idLinea = Number(driverScope.id_linea);
+  socket.idUnidad = Number(driverScope.id_unidad);
+  socket.idRuta = Number(driverScope.id_ruta);
 
   const velocidadRaw = payload?.velocidadKmh;
   const velocidadKmh = velocidadRaw == null ? null : Number(velocidadRaw);
@@ -212,27 +256,33 @@ const handleDriverLocationMessage = async (socket, payload) => {
 };
 
 const attachRealtimeHub = (server) => {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  const wss = new WebSocketServer({ server, path: "/ws" });
 
-  wss.on('connection', async (socket, req) => {
+  wss.on("connection", async (socket, req) => {
     try {
-      const requestUrl = new URL(req.url, 'http://localhost');
-      const token = requestUrl.searchParams.get('token');
+      const requestUrl = new URL(req.url, "http://localhost");
+      const token = requestUrl.searchParams.get("token");
 
       if (!token) {
-        sendJson(socket, { type: 'error', message: 'Falta token en la conexión WebSocket.' });
-        socket.close(1008, 'Token requerido');
+        sendJson(socket, {
+          type: "error",
+          message: "Falta token en la conexión WebSocket.",
+        });
+        socket.close(1008, "Token requerido");
         return;
       }
 
       const user = jwt.verify(token, JWT_SECRET);
       socket.user = user;
 
-      if (user.rol === 'gerente') {
+      if (user.rol === "gerente") {
         const line = await getGerenteLinea(user.id);
         if (!line?.id_linea) {
-          sendJson(socket, { type: 'error', message: 'Gerente sin línea asignada.' });
-          socket.close(1008, 'Sin línea');
+          sendJson(socket, {
+            type: "error",
+            message: "Gerente sin línea asignada.",
+          });
+          socket.close(1008, "Sin línea");
           return;
         }
 
@@ -241,21 +291,27 @@ const attachRealtimeHub = (server) => {
         cleanupStaleRoutes(socket.idLinea);
 
         sendJson(socket, {
-          type: 'active_routes_snapshot',
+          type: "active_routes_snapshot",
           data: {
             idLinea: socket.idLinea,
             rutas: buildSnapshot(socket.idLinea),
           },
         });
 
-        sendJson(socket, { type: 'connected', role: 'gerente' });
-      } else if (user.rol === 'chofer') {
-        sendJson(socket, { type: 'connected', role: 'chofer' });
-      } else if (user.rol === 'pasajero' || user.rol === 'usuario') {
-        const routeId = Number(requestUrl.searchParams.get('idRuta'));
+        sendJson(socket, { type: "connected", role: "gerente" });
+      } else if (user.rol === "chofer") {
+        socket.idLinea = null;
+        socket.idUnidad = null;
+        socket.idRuta = null;
+        sendJson(socket, { type: "connected", role: "chofer" });
+      } else if (user.rol === "pasajero" || user.rol === "usuario") {
+        const routeId = Number(requestUrl.searchParams.get("idRuta"));
         if (!Number.isFinite(routeId)) {
-          sendJson(socket, { type: 'error', message: 'Falta idRuta para conexión de pasajero.' });
-          socket.close(1008, 'idRuta requerido');
+          sendJson(socket, {
+            type: "error",
+            message: "Falta idRuta para conexión de pasajero.",
+          });
+          socket.close(1008, "idRuta requerido");
           return;
         }
 
@@ -264,42 +320,116 @@ const attachRealtimeHub = (server) => {
 
         const activeRoutes = findActiveRoutesById(routeId);
         activeRoutes.forEach((activeRoute) => {
-          sendJson(socket, { type: 'driver_location', data: activeRoute });
+          sendJson(socket, { type: "driver_location", data: activeRoute });
         });
 
-        sendJson(socket, { type: 'connected', role: 'pasajero' });
+        sendJson(socket, { type: "connected", role: "pasajero" });
       } else {
-        sendJson(socket, { type: 'error', message: 'Rol no autorizado para WebSocket.' });
-        socket.close(1008, 'Rol no permitido');
+        sendJson(socket, {
+          type: "error",
+          message: "Rol no autorizado para WebSocket.",
+        });
+        socket.close(1008, "Rol no permitido");
         return;
       }
 
-      socket.on('message', async (rawMessage) => {
+      socket.on("message", async (rawMessage) => {
         try {
           const message = JSON.parse(rawMessage.toString());
 
-          if (socket.user.rol === 'chofer' && message?.type === 'driver_location') {
+          if (
+            socket.user.rol === "chofer" &&
+            message?.type === "driver_location"
+          ) {
             await handleDriverLocationMessage(socket, message?.data || {});
+          } else if (
+            socket.user.rol === "chofer" &&
+            message?.type === "driver_stop"
+          ) {
+            if (socket.idLinea != null && socket.idUnidad != null) {
+              removeActiveRoute(socket.idLinea, socket.idUnidad);
+            }
+
+            if (socket.idLinea != null) {
+              broadcastToLineManagers(socket.idLinea, {
+                type: "driver_stop",
+                data: {
+                  idLinea: socket.idLinea,
+                  idRuta: socket.idRuta,
+                  idUnidad: socket.idUnidad,
+                },
+              });
+            }
+
+            if (socket.idRuta != null) {
+              broadcastToRoutePassengers(socket.idRuta, {
+                type: "driver_stop",
+                data: {
+                  idLinea: socket.idLinea,
+                  idRuta: socket.idRuta,
+                  idUnidad: socket.idUnidad,
+                },
+              });
+            }
           }
         } catch (error) {
-          console.error('Error procesando mensaje WebSocket:', error);
-          sendJson(socket, { type: 'error', message: 'No se pudo procesar el mensaje WebSocket.' });
+          console.error("Error procesando mensaje WebSocket:", error);
+          sendJson(socket, {
+            type: "error",
+            message: "No se pudo procesar el mensaje WebSocket.",
+          });
         }
       });
 
-      socket.on('close', () => {
-        if (socket.user?.rol === 'gerente' && socket.idLinea) {
+      socket.on("close", () => {
+        if (socket.user?.rol === "gerente" && socket.idLinea) {
           getLineManagersSet(socket.idLinea).delete(socket);
         }
 
-        if ((socket.user?.rol === 'pasajero' || socket.user?.rol === 'usuario') && socket.idRuta) {
+        if (
+          socket.user?.rol === "chofer" &&
+          socket.idLinea != null &&
+          socket.idUnidad != null
+        ) {
+          removeActiveRoute(socket.idLinea, socket.idUnidad);
+
+          if (socket.idLinea != null) {
+            broadcastToLineManagers(socket.idLinea, {
+              type: "driver_stop",
+              data: {
+                idLinea: socket.idLinea,
+                idRuta: socket.idRuta,
+                idUnidad: socket.idUnidad,
+              },
+            });
+          }
+
+          if (socket.idRuta != null) {
+            broadcastToRoutePassengers(socket.idRuta, {
+              type: "driver_stop",
+              data: {
+                idLinea: socket.idLinea,
+                idRuta: socket.idRuta,
+                idUnidad: socket.idUnidad,
+              },
+            });
+          }
+        }
+
+        if (
+          (socket.user?.rol === "pasajero" || socket.user?.rol === "usuario") &&
+          socket.idRuta
+        ) {
           getRoutePassengersSet(socket.idRuta).delete(socket);
         }
       });
     } catch (error) {
-      console.error('Error en conexión WebSocket:', error);
-      sendJson(socket, { type: 'error', message: 'No se pudo autenticar conexión WebSocket.' });
-      socket.close(1008, 'Autenticación inválida');
+      console.error("Error en conexión WebSocket:", error);
+      sendJson(socket, {
+        type: "error",
+        message: "No se pudo autenticar conexión WebSocket.",
+      });
+      socket.close(1008, "Autenticación inválida");
     }
   });
 
@@ -310,4 +440,5 @@ const attachRealtimeHub = (server) => {
 
 module.exports = {
   attachRealtimeHub,
+  getActiveRouteForRouteId,
 };

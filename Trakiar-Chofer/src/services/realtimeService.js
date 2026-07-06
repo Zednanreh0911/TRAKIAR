@@ -1,6 +1,12 @@
-import { WS_BASE_URL } from '../config/api';
+import { WS_BASE_URL } from "../config/api";
 
-export const createRealtimeSocket = ({ token, onOpen, onMessage, onError, onClose }) => {
+export const createRealtimeSocket = ({
+  token,
+  onOpen,
+  onMessage,
+  onError,
+  onClose,
+}) => {
   if (!token) {
     return null;
   }
@@ -18,7 +24,7 @@ export const createRealtimeSocket = ({ token, onOpen, onMessage, onError, onClos
 
   const connect = () => {
     if (isIntentionalClose) return;
-    
+
     ws = new WebSocket(socketUrl);
 
     ws.onopen = () => {
@@ -66,7 +72,7 @@ export const createRealtimeSocket = ({ token, onOpen, onMessage, onError, onClos
       if (ws) {
         ws.close();
       }
-    }
+    },
   };
 };
 
@@ -77,9 +83,24 @@ export const sendDriverRealtimeLocation = (socket, payload) => {
 
   socket.send(
     JSON.stringify({
-      type: 'driver_location',
+      type: "driver_location",
       data: payload,
-    })
+    }),
+  );
+
+  return true;
+};
+
+export const sendDriverRealtimeStop = (socket, payload = {}) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+
+  socket.send(
+    JSON.stringify({
+      type: "driver_stop",
+      data: payload,
+    }),
   );
 
   return true;

@@ -1,24 +1,30 @@
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import AnimatedEntrance from '../components/AnimatedEntrance';
-import AppButton from '../components/AppButton';
-import AppCard from '../components/AppCard';
-import AppHeroHeader from '../components/AppHeroHeader';
-import AppInput from '../components/AppInput';
-import AppScreen from '../components/AppScreen';
-import RouteResultCard from '../components/RouteResultCard';
-import { useAuth } from '../context/AuthContext';
-import { getFavoriteRoutes, isRouteFavorite, toggleFavoriteRoute } from '../services/favoritesService';
-import { searchRoutes } from '../services/apiService';
-import { colors } from '../theme/colors';
-import { getErrorText } from '../utils/error';
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import AnimatedEntrance from "../components/AnimatedEntrance";
+import AppButton from "../components/AppButton";
+import AppCard from "../components/AppCard";
+import AppHeroHeader from "../components/AppHeroHeader";
+import AppInput from "../components/AppInput";
+import AppScreen from "../components/AppScreen";
+import RouteResultCard from "../components/RouteResultCard";
+import { useAuth } from "../context/AuthContext";
+import {
+  getFavoriteRoutes,
+  isRouteFavorite,
+  toggleFavoriteRoute,
+} from "../services/favoritesService";
+import { searchRoutes } from "../services/apiService";
+import { getSearchLocation } from "../services/locationService";
+import { colors } from "../theme/colors";
+import { enrichRoutesWithEta } from "../utils/routeEta";
+import { getErrorText } from "../utils/error";
 
 export default function HomeScreen({ navigation }) {
   const { user, token } = useAuth();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [loadingSearch, setLoadingSearch] = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [searchError, setSearchError] = useState("");
   const [routes, setRoutes] = useState([]);
   const [searched, setSearched] = useState(false);
   const [favorites, setFavorites] = useState([]);
@@ -31,22 +37,23 @@ export default function HomeScreen({ navigation }) {
       };
 
       loadFavorites();
-    }, [user?.id])
+    }, [user?.id]),
   );
 
   const handleSearch = async () => {
     const normalized = query.trim();
 
     if (normalized.length < 2) {
-      setSearchError('Escribe al menos 2 caracteres para buscar rutas.');
+      setSearchError("Escribe al menos 2 caracteres para buscar rutas.");
       return;
     }
 
     try {
       setLoadingSearch(true);
-      setSearchError('');
-      const response = await searchRoutes(token, normalized);
-      setRoutes(response?.rutas || []);
+      setSearchError("");
+      const searchLocation = await getSearchLocation();
+      const response = await searchRoutes(token, normalized, searchLocation);
+      setRoutes(enrichRoutesWithEta(response?.rutas || []));
       setSearched(true);
     } catch (error) {
       setRoutes([]);
@@ -58,9 +65,9 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleSelectRoute = (routeItem) => {
-    navigation.navigate('UserMap', {
+    navigation.navigate("UserMap", {
       selectedRouteId: String(routeItem.id),
-      selectedRouteLabel: `${routeItem.nombre} · ${routeItem.linea_nombre || 'Sin línea'}`,
+      selectedRouteLabel: `${routeItem.nombre} · ${routeItem.linea_nombre || "Sin línea"}`,
     });
   };
 
@@ -76,7 +83,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.hero}>
             <AppHeroHeader
               title="Bienvenido a trakiar"
-              subtitle="Encuentra tu ruta y ve en el mapa el recorrido y el punto próximo de arribo."
+              subtitle="Busca por punto clave y ordena por el ETA local de la unidad que llegará primero."
             />
           </View>
         </AnimatedEntrance>
@@ -88,7 +95,7 @@ export default function HomeScreen({ navigation }) {
                 <AppInput
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="¿a donde quieres ir?"
+                  placeholder="Escribe un punto clave"
                   autoCapitalize="none"
                   returnKeyType="search"
                   onSubmitEditing={handleSearch}
@@ -105,7 +112,9 @@ export default function HomeScreen({ navigation }) {
               />
             </View>
 
-            {!!searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
+            {!!searchError ? (
+              <Text style={styles.errorText}>{searchError}</Text>
+            ) : null}
           </AppCard>
         </AnimatedEntrance>
 
@@ -113,7 +122,10 @@ export default function HomeScreen({ navigation }) {
           <AnimatedEntrance delay={110}>
             <AppCard>
               <Text style={styles.sectionTitle}>Sin coincidencias</Text>
-              <Text style={styles.detail}>Prueba con otra palabra clave o el nombre de la línea.</Text>
+              <Text style={styles.detail}>
+                Prueba con otro punto clave, otro nombre de ruta o una variación
+                del punto.
+              </Text>
             </AppCard>
           </AnimatedEntrance>
         ) : null}
@@ -147,7 +159,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.primaryDark,
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 8,
     letterSpacing: -0.3,
   },
@@ -157,8 +169,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   searchInputWrap: {
@@ -168,7 +180,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     paddingVertical: 0,
-    textAlignVertical: 'center',
+    textAlignVertical: "center",
   },
   searchButton: {
     width: 56,
@@ -179,7 +191,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: colors.danger,
     lineHeight: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     fontSize: 14,
   },
 });

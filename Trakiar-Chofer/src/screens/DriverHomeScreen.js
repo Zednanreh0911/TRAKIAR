@@ -1,17 +1,32 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import AppDropdown from '../components/AppDropdown';
-import { useAuth } from '../context/AuthContext';
-import { getDriverRoutes, registerDriverLocationsBatch } from '../services/apiService';
-import { createRealtimeSocket, sendDriverRealtimeLocation } from '../services/realtimeService';
-import RouteSummaryScreen from './RouteSummaryScreen';
-import { getErrorText } from '../utils/error';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import AppDropdown from "../components/AppDropdown";
+import { useAuth } from "../context/AuthContext";
+import {
+  getDriverRoutes,
+  registerDriverLocationsBatch,
+} from "../services/apiService";
+import {
+  createRealtimeSocket,
+  sendDriverRealtimeLocation,
+  sendDriverRealtimeStop,
+} from "../services/realtimeService";
+import RouteSummaryScreen from "./RouteSummaryScreen";
+import { getErrorText } from "../utils/error";
 
 const TRACK_INTERVAL_MS = 5000;
-const BUFFER_STORAGE_PREFIX = '@trakiar:driver-points:';
+const BUFFER_STORAGE_PREFIX = "@trakiar:driver-points:";
 
 const getRouteBufferKey = (routeId) => `${BUFFER_STORAGE_PREFIX}${routeId}`;
 
@@ -21,7 +36,7 @@ const formatDuration = (durationMs) => {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
 const getRouteSummary = (points, startedAtMs, finishedAtMs) => {
@@ -30,10 +45,21 @@ const getRouteSummary = (points, startedAtMs, finishedAtMs) => {
     .filter((speed) => Number.isFinite(speed) && speed >= 0);
 
   const avgSpeed =
-    validSpeeds.length > 0 ? Number((validSpeeds.reduce((acc, speed) => acc + speed, 0) / validSpeeds.length).toFixed(2)) : 0;
+    validSpeeds.length > 0
+      ? Number(
+          (
+            validSpeeds.reduce((acc, speed) => acc + speed, 0) /
+            validSpeeds.length
+          ).toFixed(2),
+        )
+      : 0;
 
   return {
-    durationText: formatDuration((startedAtMs || finishedAtMs) ? finishedAtMs - (startedAtMs || finishedAtMs) : 0),
+    durationText: formatDuration(
+      startedAtMs || finishedAtMs
+        ? finishedAtMs - (startedAtMs || finishedAtMs)
+        : 0,
+    ),
     totalPoints: points.length,
     averageSpeedKmh: avgSpeed,
   };
@@ -42,13 +68,15 @@ const getRouteSummary = (points, startedAtMs, finishedAtMs) => {
 export default function DriverHomeScreen() {
   const { token, user, signOut } = useAuth();
   const [routes, setRoutes] = useState([]);
-  const [selectedRoute, setSelectedRoute] = useState('');
+  const [selectedRoute, setSelectedRoute] = useState("");
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [tracking, setTracking] = useState(false);
-  const [trackText, setTrackText] = useState('Selecciona una ruta y presiona iniciar ruta.');
+  const [trackText, setTrackText] = useState(
+    "Selecciona una ruta y presiona iniciar ruta.",
+  );
   const [bufferedCount, setBufferedCount] = useState(0);
-  const [liveStatus, setLiveStatus] = useState('idle');
-  const [lastCaptureText, setLastCaptureText] = useState('');
+  const [liveStatus, setLiveStatus] = useState("idle");
+  const [lastCaptureText, setLastCaptureText] = useState("");
   const [routeSummary, setRouteSummary] = useState(null);
   const [finalizingRoute, setFinalizingRoute] = useState(false);
   const [syncRetrying, setSyncRetrying] = useState(false);
@@ -66,7 +94,7 @@ export default function DriverHomeScreen() {
   const realtimeSocketRef = useRef(null);
 
   const unidadLabel = user?.unidad?.identificador
-    ? `${user.unidad.identificador}${user?.unidad?.estado ? ` (${user.unidad.estado})` : ''}`
+    ? `${user.unidad.identificador}${user?.unidad?.estado ? ` (${user.unidad.estado})` : ""}`
     : null;
 
   const routeOptions = useMemo(
@@ -75,7 +103,7 @@ export default function DriverHomeScreen() {
         value: String(route.id),
         label: route.nombre,
       })),
-    [routes]
+    [routes],
   );
 
   const appendPointToBuffer = async (routeId, point) => {
@@ -106,6 +134,40 @@ export default function DriverHomeScreen() {
     }
   };
 
+  const resetDriverPanel = () => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+
+    clearSyncRetryInterval();
+
+    if (realtimeSocketRef.current) {
+      sendDriverRealtimeStop(realtimeSocketRef.current, {
+        idRuta: activeRouteRef.current || null,
+        idUnidad: user?.unidad?.id || null,
+      });
+      realtimeSocketRef.current.close();
+      realtimeSocketRef.current = null;
+    }
+
+    holdPressedRef.current = false;
+    captureInProgressRef.current = false;
+    finalizingRouteRef.current = false;
+    activeRouteRef.current = null;
+    routeStartedAtRef.current = null;
+    pendingSyncRef.current = null;
+
+    setTracking(false);
+    setFinalizingRoute(false);
+    setLiveStatus("idle");
+    setLastCaptureText("");
+    setTrackText("Selecciona una ruta y presiona iniciar ruta.");
+    setBufferedCount(0);
+    setRouteSummary(null);
+    setSyncRetrying(false);
+  };
+
   const attemptPendingSync = async () => {
     if (syncRetryInProgressRef.current) {
       return;
@@ -132,11 +194,11 @@ export default function DriverHomeScreen() {
           prev
             ? {
                 ...prev,
-                syncStatus: 'completed',
-                syncMessage: 'No había puntos pendientes por sincronizar.',
+                syncStatus: "completed",
+                syncMessage: "No había puntos pendientes por sincronizar.",
                 syncRetrying: false,
               }
-            : prev
+            : prev,
         );
         pendingSyncRef.current = null;
         clearSyncRetryInterval();
@@ -154,11 +216,11 @@ export default function DriverHomeScreen() {
         prev
           ? {
               ...prev,
-              syncStatus: 'completed',
+              syncStatus: "completed",
               syncMessage: `Se enviaron ${pendingPayload.length} puntos pendientes correctamente.`,
               syncRetrying: false,
             }
-          : prev
+          : prev,
       );
       pendingSyncRef.current = null;
       clearSyncRetryInterval();
@@ -167,16 +229,19 @@ export default function DriverHomeScreen() {
         prev
           ? {
               ...prev,
-              syncStatus: 'pending',
-              syncMessage: 'No se pudo sincronizar; se reintentara automaticamente cuando haya conexion.',
+              syncStatus: "pending",
+              syncMessage:
+                "No se pudo sincronizar; se reintentara automaticamente cuando haya conexion.",
               syncRetrying: false,
             }
-          : prev
+          : prev,
       );
     } finally {
       syncRetryInProgressRef.current = false;
       setSyncRetrying(false);
-      setRouteSummary((prev) => (prev ? { ...prev, syncRetrying: false } : prev));
+      setRouteSummary((prev) =>
+        prev ? { ...prev, syncRetrying: false } : prev,
+      );
     }
   };
 
@@ -189,7 +254,6 @@ export default function DriverHomeScreen() {
       attemptPendingSync();
     }, 20000);
   };
-
 
   const captureAndBufferLocation = async () => {
     if (captureInProgressRef.current) {
@@ -208,7 +272,10 @@ export default function DriverHomeScreen() {
       });
 
       const speedMs = location?.coords?.speed;
-      const speedKmh = typeof speedMs === 'number' && speedMs > 0 ? Number((speedMs * 3.6).toFixed(2)) : null;
+      const speedKmh =
+        typeof speedMs === "number" && speedMs > 0
+          ? Number((speedMs * 3.6).toFixed(2))
+          : null;
 
       const payload = {
         latitud: location.coords.latitude,
@@ -226,12 +293,17 @@ export default function DriverHomeScreen() {
 
       // La sincronizacion con la base de datos se realiza al finalizar la ruta.
 
-      setLiveStatus('ok');
+      setLiveStatus("ok");
       setLastCaptureText(new Date().toLocaleTimeString());
       setTrackText(`Ruta en curso. Puntos guardados localmente: ${total}.`);
     } catch (error) {
-      setLiveStatus('error');
-      setTrackText(getErrorText(error, 'No se pudo capturar la ubicación en este momento.'));
+      setLiveStatus("error");
+      setTrackText(
+        getErrorText(
+          error,
+          "No se pudo capturar la ubicación en este momento.",
+        ),
+      );
     } finally {
       captureInProgressRef.current = false;
     }
@@ -245,7 +317,7 @@ export default function DriverHomeScreen() {
 
     setTracking(false);
     captureInProgressRef.current = false;
-    setLiveStatus('idle');
+    setLiveStatus("idle");
 
     const routeId = activeRouteRef.current;
     const startedAtMs = routeStartedAtRef.current;
@@ -254,10 +326,16 @@ export default function DriverHomeScreen() {
 
     if (!routeId) {
       if (realtimeSocketRef.current) {
+        sendDriverRealtimeStop(realtimeSocketRef.current, {
+          idRuta: null,
+          idUnidad: user?.unidad?.id || null,
+        });
         realtimeSocketRef.current.close();
         realtimeSocketRef.current = null;
       }
-      setTrackText('Ruta finalizada. Puedes seleccionar otra ruta para iniciar nuevamente.');
+      setTrackText(
+        "Ruta finalizada. Puedes seleccionar otra ruta para iniciar nuevamente.",
+      );
       return;
     }
 
@@ -269,25 +347,28 @@ export default function DriverHomeScreen() {
       const pendingPoints = points.filter((point) => !point?.synced);
       const finishedAtMs = Date.now();
       const summary = getRouteSummary(points, startedAtMs, finishedAtMs);
-      const currentRouteName = routes.find((route) => Number(route.id) === Number(routeId))?.nombre || `Ruta ${routeId}`;
+      const currentRouteName =
+        routes.find((route) => Number(route.id) === Number(routeId))?.nombre ||
+        `Ruta ${routeId}`;
 
       if (points.length === 0) {
-        setTrackText('Ruta finalizada sin puntos capturados.');
+        setTrackText("Ruta finalizada sin puntos capturados.");
         setBufferedCount(0);
 
         setRouteSummary({
           ...summary,
           routeName: currentRouteName,
-          syncStatus: 'completed',
-          syncMessage: 'No se capturaron puntos en esta ruta.',
+          syncStatus: "completed",
+          syncMessage: "No se capturaron puntos en esta ruta.",
         });
-        return;
       }
 
       if (pendingPoints.length > 0) {
         const pendingPayload = buildPendingPayload(pendingPoints);
 
-        setTrackText(`Finalizando ruta... enviando ${pendingPayload.length} puntos pendientes.`);
+        setTrackText(
+          `Finalizando ruta... enviando ${pendingPayload.length} puntos pendientes.`,
+        );
         await registerDriverLocationsBatch(token, {
           idRuta: routeId,
           puntos: pendingPayload,
@@ -299,25 +380,32 @@ export default function DriverHomeScreen() {
       setTrackText(
         pendingPoints.length > 0
           ? `Ruta finalizada. Se enviaron ${pendingPoints.length} puntos correctamente.`
-          : 'Ruta finalizada. Todos los puntos ya estaban sincronizados.'
+          : "Ruta finalizada. Todos los puntos ya estaban sincronizados.",
       );
 
       setRouteSummary({
         ...summary,
         routeName: currentRouteName,
-        syncStatus: 'completed',
+        syncStatus: "completed",
         syncMessage:
           pendingPoints.length > 0
             ? `Se enviaron ${pendingPoints.length} puntos correctamente.`
-            : 'Todos los puntos ya estaban sincronizados en tiempo real.',
+            : "Todos los puntos ya estaban sincronizados en tiempo real.",
       });
     } catch (error) {
-      setTrackText(getErrorText(error, 'No se pudieron enviar los puntos. Quedaron guardados localmente.'));
+      setTrackText(
+        getErrorText(
+          error,
+          "No se pudieron enviar los puntos. Quedaron guardados localmente.",
+        ),
+      );
       const finishedAtMs = Date.now();
       const raw = await AsyncStorage.getItem(bufferKey);
       const points = raw ? JSON.parse(raw) : [];
       const summary = getRouteSummary(points, startedAtMs, finishedAtMs);
-      const currentRouteName = routes.find((route) => Number(route.id) === Number(routeId))?.nombre || `Ruta ${routeId}`;
+      const currentRouteName =
+        routes.find((route) => Number(route.id) === Number(routeId))?.nombre ||
+        `Ruta ${routeId}`;
 
       pendingSyncRef.current = { routeId, bufferKey };
       ensureSyncRetryInterval();
@@ -325,12 +413,17 @@ export default function DriverHomeScreen() {
       setRouteSummary({
         ...summary,
         routeName: currentRouteName,
-        syncStatus: 'pending',
-        syncMessage: 'No se pudieron enviar al servidor; los puntos quedaron guardados para reintento.',
+        syncStatus: "pending",
+        syncMessage:
+          "No se pudieron enviar al servidor; los puntos quedaron guardados para reintento.",
         syncRetrying: false,
       });
     } finally {
       if (realtimeSocketRef.current) {
+        sendDriverRealtimeStop(realtimeSocketRef.current, {
+          idRuta: routeId,
+          idUnidad: user?.unidad?.id || null,
+        });
         realtimeSocketRef.current.close();
         realtimeSocketRef.current = null;
       }
@@ -401,11 +494,16 @@ export default function DriverHomeScreen() {
       const fetchedRoutes = response?.rutas || [];
       setRoutes(fetchedRoutes);
 
-      if (selectedRoute && !fetchedRoutes.some((route) => String(route.id) === selectedRoute)) {
-        setSelectedRoute('');
+      if (
+        selectedRoute &&
+        !fetchedRoutes.some((route) => String(route.id) === selectedRoute)
+      ) {
+        setSelectedRoute("");
       }
     } catch (error) {
-      setTrackText(getErrorText(error, 'No se pudieron cargar las rutas de chofer.'));
+      setTrackText(
+        getErrorText(error, "No se pudieron cargar las rutas de chofer."),
+      );
     } finally {
       setLoadingRoutes(false);
     }
@@ -432,28 +530,34 @@ export default function DriverHomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (routeSummary?.syncStatus === 'pending' && pendingSyncRef.current) {
+    if (routeSummary?.syncStatus === "pending" && pendingSyncRef.current) {
       ensureSyncRetryInterval();
-    } else if (routeSummary?.syncStatus === 'completed') {
+    } else if (routeSummary?.syncStatus === "completed") {
       clearSyncRetryInterval();
     }
   }, [routeSummary?.syncStatus]);
 
   const startTracking = async () => {
     if (!selectedRoute) {
-      Alert.alert('Ruta requerida', 'Selecciona una ruta para iniciar.');
+      Alert.alert("Ruta requerida", "Selecciona una ruta para iniciar.");
       return;
     }
 
     if (!unidadLabel) {
-      Alert.alert('Unidad requerida', 'No tienes una unidad asignada para iniciar ruta.');
+      Alert.alert(
+        "Unidad requerida",
+        "No tienes una unidad asignada para iniciar ruta.",
+      );
       return;
     }
 
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Debes permitir ubicación para iniciar la ruta.');
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permiso denegado",
+          "Debes permitir ubicación para iniciar la ruta.",
+        );
         return;
       }
 
@@ -466,13 +570,15 @@ export default function DriverHomeScreen() {
       });
 
       activeRouteRef.current = routeId;
-    routeStartedAtRef.current = Date.now();
+      routeStartedAtRef.current = Date.now();
       setBufferedCount(0);
       setTracking(true);
-    setFinalizingRoute(false);
-    setLiveStatus('pending');
-    setLastCaptureText('');
-      setTrackText('Ruta iniciada. Capturando ubicación cada 10 segundos y guardando localmente.');
+      setFinalizingRoute(false);
+      setLiveStatus("pending");
+      setLastCaptureText("");
+      setTrackText(
+        "Ruta iniciada. Capturando ubicación cada 10 segundos y guardando localmente.",
+      );
 
       await captureAndBufferLocation();
       locationIntervalRef.current = setInterval(() => {
@@ -482,29 +588,40 @@ export default function DriverHomeScreen() {
       setTracking(false);
       activeRouteRef.current = null;
       routeStartedAtRef.current = null;
-      setLiveStatus('error');
-      Alert.alert('Error', getErrorText(error, 'No se pudo iniciar el seguimiento de ubicación.'));
+      setLiveStatus("error");
+      Alert.alert(
+        "Error",
+        getErrorText(error, "No se pudo iniciar el seguimiento de ubicación."),
+      );
     }
   };
 
   const liveIndicatorLabel = useMemo(() => {
     if (!tracking) {
-      return '';
+      return "";
     }
 
-    if (liveStatus === 'ok') {
-      return lastCaptureText ? `En vivo · última captura ${lastCaptureText}` : 'En vivo · capturando correctamente';
+    if (liveStatus === "ok") {
+      return lastCaptureText
+        ? `En vivo · última captura ${lastCaptureText}`
+        : "En vivo · capturando correctamente";
     }
 
-    if (liveStatus === 'error') {
-      return 'En vivo · error de captura (reintentando)';
+    if (liveStatus === "error") {
+      return "En vivo · error de captura (reintentando)";
     }
 
-    return 'En vivo · iniciando captura';
+    return "En vivo · iniciando captura";
   }, [tracking, liveStatus, lastCaptureText]);
 
   if (routeSummary) {
-    return <RouteSummaryScreen summary={routeSummary} onBack={() => setRouteSummary(null)} syncRetrying={syncRetrying} />;
+    return (
+      <RouteSummaryScreen
+        summary={routeSummary}
+        onBack={resetDriverPanel}
+        syncRetrying={syncRetrying}
+      />
+    );
   }
 
   return (
@@ -515,11 +632,15 @@ export default function DriverHomeScreen() {
           <Text style={styles.signOutTopText}>Cerrar sesión</Text>
         </Pressable>
       </View>
-      <Text style={styles.subtitle}>¡Bienvenido {user?.nombre || 'Chofer'}!</Text>
+      <Text style={styles.subtitle}>
+        ¡Bienvenido {user?.nombre || "Chofer"}!
+      </Text>
 
       <View style={styles.unitCard}>
         <Text style={styles.unitTitle}>Unidad asignada</Text>
-        <Text style={styles.unitText}>{unidadLabel || 'No tienes una unidad asignada.'}</Text>
+        <Text style={styles.unitText}>
+          {unidadLabel || "No tienes una unidad asignada."}
+        </Text>
       </View>
 
       <View style={styles.routeCard}>
@@ -530,7 +651,9 @@ export default function DriverHomeScreen() {
           options={routeOptions}
           onChange={setSelectedRoute}
           disabled={loadingRoutes || tracking || !unidadLabel}
-          placeholder={loadingRoutes ? 'Cargando rutas...' : 'Selecciona una ruta'}
+          placeholder={
+            loadingRoutes ? "Cargando rutas..." : "Selecciona una ruta"
+          }
         />
 
         <Text style={styles.trackText}>{trackText}</Text>
@@ -539,18 +662,30 @@ export default function DriverHomeScreen() {
             <View
               style={[
                 styles.liveDot,
-                liveStatus === 'ok' ? styles.liveDotOk : liveStatus === 'error' ? styles.liveDotError : styles.liveDotPending,
+                liveStatus === "ok"
+                  ? styles.liveDotOk
+                  : liveStatus === "error"
+                    ? styles.liveDotError
+                    : styles.liveDotPending,
               ]}
             />
             <Text style={styles.liveText}>{liveIndicatorLabel}</Text>
           </View>
         ) : null}
-        {tracking ? <Text style={styles.bufferText}>Puntos guardados localmente: {bufferedCount}</Text> : null}
+        {tracking ? (
+          <Text style={styles.bufferText}>
+            Puntos guardados localmente: {bufferedCount}
+          </Text>
+        ) : null}
 
         <View style={styles.routeActions}>
           {!tracking ? (
             <Pressable
-              style={[styles.routeButton, styles.startButton, (!selectedRoute || !unidadLabel) && styles.buttonDisabled]}
+              style={[
+                styles.routeButton,
+                styles.startButton,
+                (!selectedRoute || !unidadLabel) && styles.buttonDisabled,
+              ]}
               onPress={startTracking}
               disabled={!selectedRoute || !unidadLabel}
             >
@@ -559,7 +694,11 @@ export default function DriverHomeScreen() {
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.routeButton, styles.stopButton, finalizingRoute && styles.buttonDisabled]}
+              style={[
+                styles.routeButton,
+                styles.stopButton,
+                finalizingRoute && styles.buttonDisabled,
+              ]}
               delayLongPress={3000}
               onPressIn={startHoldAnimation}
               onPressOut={resetHoldAnimation}
@@ -573,21 +712,29 @@ export default function DriverHomeScreen() {
                   {
                     width: holdProgress.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
+                      outputRange: ["0%", "100%"],
                     }),
                   },
                 ]}
               />
               <View style={styles.routeButtonContent}>
                 <MaterialCommunityIcons name="stop" size={16} color="#fff" />
-                <Text style={styles.routeButtonText}>{finalizingRoute ? 'finalizando...' : 'manten para finalizar'}</Text>
+                <Text style={styles.routeButtonText}>
+                  {finalizingRoute ? "finalizando..." : "manten para finalizar"}
+                </Text>
               </View>
             </Pressable>
           )}
         </View>
 
-        <Pressable style={[styles.refreshButton, loadingRoutes && styles.buttonDisabled]} onPress={loadDriverRoutes} disabled={loadingRoutes}>
-          <Text style={styles.refreshButtonText}>{loadingRoutes ? 'Actualizando...' : 'Actualizar rutas'}</Text>
+        <Pressable
+          style={[styles.refreshButton, loadingRoutes && styles.buttonDisabled]}
+          onPress={loadDriverRoutes}
+          disabled={loadingRoutes}
+        >
+          <Text style={styles.refreshButtonText}>
+            {loadingRoutes ? "Actualizando..." : "Actualizar rutas"}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -597,85 +744,85 @@ export default function DriverHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F8FC',
+    backgroundColor: "#F6F8FC",
     paddingHorizontal: 22,
     paddingTop: 52,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
   title: {
     fontSize: 26,
-    fontWeight: '800',
-    color: '#1A2A4A',
+    fontWeight: "800",
+    color: "#1A2A4A",
     flexShrink: 1,
   },
   signOutTopButton: {
-    backgroundColor: '#EEF3FF',
+    backgroundColor: "#EEF3FF",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   signOutTopText: {
-    color: '#2F6BFF',
-    fontWeight: '700',
+    color: "#2F6BFF",
+    fontWeight: "700",
     fontSize: 12,
   },
   subtitle: {
-    color: '#5E6A7D',
+    color: "#5E6A7D",
     marginTop: 4,
     marginBottom: 14,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   unitCard: {
-    backgroundColor: '#fff',
-    borderColor: '#E4EAF7',
+    backgroundColor: "#fff",
+    borderColor: "#E4EAF7",
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
   },
   unitTitle: {
-    color: '#3A4760',
+    color: "#3A4760",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 6,
   },
   unitText: {
-    color: '#1A2A4A',
+    color: "#1A2A4A",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   routeCard: {
     marginTop: 12,
-    backgroundColor: '#fff',
-    borderColor: '#E4EAF7',
+    backgroundColor: "#fff",
+    borderColor: "#E4EAF7",
     borderWidth: 1,
     borderRadius: 14,
     padding: 14,
     gap: 10,
   },
   routeTitle: {
-    color: '#3A4760',
+    color: "#3A4760",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   trackText: {
-    color: '#5E6A7D',
+    color: "#5E6A7D",
     fontSize: 13,
     lineHeight: 18,
   },
   bufferText: {
-    color: '#1A2A4A',
+    color: "#1A2A4A",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   liveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 7,
   },
   liveDot: {
@@ -684,71 +831,71 @@ const styles = StyleSheet.create({
     borderRadius: 99,
   },
   liveDotOk: {
-    backgroundColor: '#13A95A',
+    backgroundColor: "#13A95A",
   },
   liveDotError: {
-    backgroundColor: '#D64545',
+    backgroundColor: "#D64545",
   },
   liveDotPending: {
-    backgroundColor: '#F0A202',
+    backgroundColor: "#F0A202",
   },
   liveText: {
-    color: '#3A4760',
+    color: "#3A4760",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   routeActions: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
   },
   routeButton: {
     flex: 1,
     borderRadius: 12,
     minHeight: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   startButton: {
-    backgroundColor: '#2F6BFF',
+    backgroundColor: "#2F6BFF",
   },
   stopButton: {
-    backgroundColor: '#C63E3E',
+    backgroundColor: "#C63E3E",
   },
   routeButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   routeButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     zIndex: 2,
   },
   holdProgressFill: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: "rgba(255,255,255,0.25)",
     zIndex: 1,
   },
   refreshButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#EEF3FF',
+    backgroundColor: "#EEF3FF",
   },
   refreshButtonText: {
-    color: '#2F6BFF',
-    fontWeight: '700',
+    color: "#2F6BFF",
+    fontWeight: "700",
     fontSize: 13,
   },
   buttonDisabled: {
