@@ -1,9 +1,9 @@
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
 const defaultServerByPlatform = {
-  android: 'http://192.168.0.108:3000',
-  ios: 'http://localhost:3000',
-  default: 'http://localhost:3000',
+  android: "http://10.0.2.2:3000",
+  ios: "http://localhost:3000",
+  default: "http://localhost:3000",
 };
 
 const serverBaseUrl =
@@ -11,6 +11,6 @@ const serverBaseUrl =
   defaultServerByPlatform[Platform.OS] ||
   defaultServerByPlatform.default;
 
-export const SERVER_BASE_URL = serverBaseUrl.replace(/\/$/, '');
+export const SERVER_BASE_URL = serverBaseUrl.replace(/\/$/, "");
 export const API_BASE_URL = `${SERVER_BASE_URL}/api/users`;
-export const WS_BASE_URL = SERVER_BASE_URL.replace(/^http/i, 'ws');
+export const WS_BASE_URL = SERVER_BASE_URL.replace(/^http/i, "ws");

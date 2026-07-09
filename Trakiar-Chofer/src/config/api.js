@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 const defaultServerByPlatform = {
-  android: "http://192.168.0.108:3000",
+  android: "http://10.0.2.2:3000",
   ios: "http://localhost:3000",
   web: "http://localhost:3000",
   default: "http://localhost:3000",
@@ -24,7 +24,7 @@ const ensureHttpProtocol = (rawUrl) => {
 const serverBaseUrl = ensureHttpProtocol(
   process.env.EXPO_PUBLIC_SERVER_URL ||
     defaultServerByPlatform[Platform.OS] ||
-    defaultServerByPlatform.default
+    defaultServerByPlatform.default,
 );
 
 export const SERVER_BASE_URL = serverBaseUrl.replace(/\/$/, "");
