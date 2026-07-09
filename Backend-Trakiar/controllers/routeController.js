@@ -876,11 +876,68 @@ const searchRoutes = async (req, res) => {
             : null,
           unidades_recientes: [],
           tiene_tiempo_real: Boolean(liveRoute),
+          ruta_en_vivo: liveRoute
+            ? {
+                idLinea: Number(liveRoute.idLinea),
+                idRuta: Number(liveRoute.idRuta),
+                nombreRuta: liveRoute.nombreRuta || null,
+                idUnidad: Number(liveRoute.idUnidad),
+                unidadIdentificador: liveRoute.unidadIdentificador || null,
+                chofer: liveRoute.chofer
+                  ? {
+                      nombre: liveRoute.chofer.nombre || null,
+                      correo: liveRoute.chofer.correo || null,
+                    }
+                  : null,
+                lastUpdate: liveRoute.lastUpdate || null,
+                totalPuntosRecibidos:
+                  Number(liveRoute.totalPuntosRecibidos) || 0,
+                ultimaUbicacion: liveRoute.ultimaUbicacion
+                  ? {
+                      latitud: Number(liveRoute.ultimaUbicacion.latitud),
+                      longitud: Number(liveRoute.ultimaUbicacion.longitud),
+                      velocidadKmh:
+                        liveRoute.ultimaUbicacion.velocidadKmh == null
+                          ? null
+                          : Number(liveRoute.ultimaUbicacion.velocidadKmh),
+                      capturedAt: liveRoute.ultimaUbicacion.capturedAt || null,
+                    }
+                  : null,
+              }
+            : null,
           distancia_usuario_km: distanciaUsuarioKm,
         });
       } else {
         const route = groupedRoutes.get(routeId);
         route.tiene_tiempo_real = Boolean(liveRoute) || route.tiene_tiempo_real;
+        route.ruta_en_vivo = liveRoute
+          ? {
+              idLinea: Number(liveRoute.idLinea),
+              idRuta: Number(liveRoute.idRuta),
+              nombreRuta: liveRoute.nombreRuta || null,
+              idUnidad: Number(liveRoute.idUnidad),
+              unidadIdentificador: liveRoute.unidadIdentificador || null,
+              chofer: liveRoute.chofer
+                ? {
+                    nombre: liveRoute.chofer.nombre || null,
+                    correo: liveRoute.chofer.correo || null,
+                  }
+                : null,
+              lastUpdate: liveRoute.lastUpdate || null,
+              totalPuntosRecibidos: Number(liveRoute.totalPuntosRecibidos) || 0,
+              ultimaUbicacion: liveRoute.ultimaUbicacion
+                ? {
+                    latitud: Number(liveRoute.ultimaUbicacion.latitud),
+                    longitud: Number(liveRoute.ultimaUbicacion.longitud),
+                    velocidadKmh:
+                      liveRoute.ultimaUbicacion.velocidadKmh == null
+                        ? null
+                        : Number(liveRoute.ultimaUbicacion.velocidadKmh),
+                    capturedAt: liveRoute.ultimaUbicacion.capturedAt || null,
+                  }
+                : null,
+            }
+          : route.ruta_en_vivo;
         route.distancia_usuario_km = distanciaUsuarioKm;
       }
 
@@ -1025,6 +1082,7 @@ const listPublicRoutesCatalog = async (req, res) => {
       }
 
       if (row.id_ruta) {
+        const liveRoute = getActiveRouteForRouteId(Number(row.id_ruta));
         byLine.get(lineId).rutas.push({
           id: Number(row.id_ruta),
           id_linea: lineId,
@@ -1035,6 +1093,36 @@ const listPublicRoutesCatalog = async (req, res) => {
           created_at: row.ruta_created_at,
           modified_at: row.ruta_modified_at,
           modified_by: row.ruta_modified_by,
+          tiene_tiempo_real: Boolean(liveRoute),
+          ruta_en_vivo: liveRoute
+            ? {
+                idLinea: Number(liveRoute.idLinea),
+                idRuta: Number(liveRoute.idRuta),
+                nombreRuta: liveRoute.nombreRuta || null,
+                idUnidad: Number(liveRoute.idUnidad),
+                unidadIdentificador: liveRoute.unidadIdentificador || null,
+                chofer: liveRoute.chofer
+                  ? {
+                      nombre: liveRoute.chofer.nombre || null,
+                      correo: liveRoute.chofer.correo || null,
+                    }
+                  : null,
+                lastUpdate: liveRoute.lastUpdate || null,
+                totalPuntosRecibidos:
+                  Number(liveRoute.totalPuntosRecibidos) || 0,
+                ultimaUbicacion: liveRoute.ultimaUbicacion
+                  ? {
+                      latitud: Number(liveRoute.ultimaUbicacion.latitud),
+                      longitud: Number(liveRoute.ultimaUbicacion.longitud),
+                      velocidadKmh:
+                        liveRoute.ultimaUbicacion.velocidadKmh == null
+                          ? null
+                          : Number(liveRoute.ultimaUbicacion.velocidadKmh),
+                      capturedAt: liveRoute.ultimaUbicacion.capturedAt || null,
+                    }
+                  : null,
+              }
+            : null,
         });
       }
     }

@@ -25,9 +25,17 @@ export default function RouteResultCard({
   const unitLabel =
     routeItem?.unidadMasRapida?.id_unidad ||
     routeItem?.unidad_mas_rapida?.id_unidad;
+  const liveRoute = routeItem?.ruta_en_vivo || null;
   const isLive = Boolean(
-    routeItem?.tieneTiempoReal || routeItem?.tiene_tiempo_real,
+    routeItem?.tieneTiempoReal || routeItem?.tiene_tiempo_real || liveRoute,
   );
+  const liveDriverName =
+    liveRoute?.chofer?.nombre ||
+    routeItem?.chofer?.nombre ||
+    routeItem?.chofer_nombre;
+  const assignedUnitLabel =
+    liveRoute?.unidadIdentificador ||
+    (liveRoute?.idUnidad != null ? `Unidad ${liveRoute.idUnidad}` : null);
 
   return (
     <AppCard>
@@ -50,6 +58,20 @@ export default function RouteResultCard({
             <Text style={styles.pointMeta}>Punto clave: {pointLabel}</Text>
           ) : null}
           {isLive ? <Text style={styles.liveMeta}>En vivo</Text> : null}
+          {isLive ? (
+            <View style={styles.liveInfoWrap}>
+              {liveDriverName ? (
+                <Text style={styles.liveInfoText}>
+                  Chofer: {liveDriverName}
+                </Text>
+              ) : null}
+              {assignedUnitLabel ? (
+                <Text style={styles.liveInfoText}>
+                  Unidad asignada: {assignedUnitLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         {onToggleFavorite ? (
@@ -167,6 +189,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 0.6,
+  },
+  liveInfoWrap: {
+    marginTop: 2,
+    gap: 2,
+  },
+  liveInfoText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
   },
   routeDescription: {
     color: colors.textMuted,

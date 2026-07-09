@@ -1,13 +1,31 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const keyForUser = (userId) => `trakiar_favorites_${String(userId || 'anon')}`;
+const keyForUser = (userId) => `trakiar_favorites_${String(userId || "anon")}`;
 
 const normalizeRoute = (routeItem) => ({
   id: Number(routeItem?.id),
   id_linea: routeItem?.id_linea ?? null,
-  linea_nombre: routeItem?.linea_nombre || 'Sin línea',
-  nombre: routeItem?.nombre || 'Ruta sin nombre',
-  descripcion: routeItem?.descripcion || '',
+  linea_nombre: routeItem?.linea_nombre || "Sin línea",
+  nombre: routeItem?.nombre || "Ruta sin nombre",
+  descripcion: routeItem?.descripcion || "",
+  tiene_tiempo_real: Boolean(
+    routeItem?.tiene_tiempo_real || routeItem?.tieneTiempoReal,
+  ),
+  ruta_en_vivo: routeItem?.ruta_en_vivo
+    ? {
+        ...routeItem.ruta_en_vivo,
+        chofer: routeItem.ruta_en_vivo?.chofer
+          ? {
+              ...routeItem.ruta_en_vivo.chofer,
+            }
+          : null,
+        ultimaUbicacion: routeItem.ruta_en_vivo?.ultimaUbicacion
+          ? {
+              ...routeItem.ruta_en_vivo.ultimaUbicacion,
+            }
+          : null,
+      }
+    : null,
 });
 
 export const getFavoriteRoutes = async (userId) => {
